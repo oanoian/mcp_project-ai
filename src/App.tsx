@@ -36,59 +36,36 @@ export default function App() {
       const generatedTasks = generateTasks();
 
       useAppStore.setState({
-        agents: generatedAgents,
-        tasks: generatedTasks,
+        agents: [],
+        tasks: [],
         providers: initialProviders,
         teams: teamConfigs.map(tc => ({
           ...tc,
-          agentCount: 10,
-          agents: generatedAgents.filter(a => a.team === tc.id),
+          agentCount: 0,
+          agents: [],
           metrics: {
-            totalTasks: 10,
-            completedTasks: generatedTasks.filter(t => t.team === tc.id && t.status === 'completed').length,
-            failedTasks: Math.floor(Math.random() * 3),
-            avgCompletionTime: Math.floor(Math.random() * 300) + 60,
-            throughput: Math.floor(Math.random() * 20) + 5,
+            totalTasks: 0,
+            completedTasks: 0,
+            failedTasks: 0,
+            avgCompletionTime: 0,
+            throughput: 0,
           },
         })),
         metrics: {
-          totalTokensProcessed: generatedAgents.reduce((s, a) => s + a.tokensUsed, 0),
-          totalTasksCompleted: generatedTasks.filter(t => t.status === 'completed').length,
-          totalTasksFailed: generatedTasks.filter(t => t.status === 'failed').length,
-          avgLatency: Math.floor(initialProviders.reduce((s, p) => s + p.latency, 0) / initialProviders.length),
-          systemUptime: 99.7,
-          messagesPerSecond: Math.floor(Math.random() * 50) + 20,
-          activeConnections: initialProviders.filter(p => p.status === 'connected').length,
-          queueDepth: generatedTasks.filter(t => t.status === 'queued').length,
+          totalTokensProcessed: 0,
+          totalTasksCompleted: 0,
+          totalTasksFailed: 0,
+          avgLatency: 0,
+          systemUptime: 0,
+          messagesPerSecond: 0,
+          activeConnections: 0,
+          queueDepth: 0,
         },
-        // Initialize communication data
-        messages: sampleMessages,
-        taskDelegations: sampleTaskDelegations,
-        communicationFlows: sampleCommunicationFlows,
-        decisions: sampleDecisions,
-      });
-
-      // Initial logs
-      const logMessages = [
-        { level: 'info' as const, source: 'orchestrator', message: 'MCP Server initialized with 60 agents across 6 teams' },
-        { level: 'info' as const, source: 'gateway', message: 'Connected to 16 free LLM API providers' },
-        { level: 'info' as const, source: 'queue', message: 'Task queue initialized with 60 pending tasks' },
-        { level: 'info' as const, source: 'health', message: 'All agent health checks passed' },
-        { level: 'info' as const, source: 'protocol', message: 'JSON-RPC 2.0 transport layer active (stdio + SSE)' },
-        { level: 'warn' as const, source: 'gateway', message: 'xAI provider latency elevated (567ms)' },
-        { level: 'info' as const, source: 'scheduler', message: 'Task distribution: 10 tasks per team allocated' },
-        { level: 'info' as const, source: 'synthesizer', message: 'Result synthesis pipeline ready' },
-      ];
-
-      logMessages.forEach((msg, i) => {
-        setTimeout(() => {
-          useAppStore.getState().addLog({
-            level: msg.level,
-            source: msg.source,
-            team: 'system',
-            message: msg.message,
-          });
-        }, i * 200);
+        // Initialize empty communication data
+        messages: [],
+        taskDelegations: [],
+        communicationFlows: [],
+        decisions: [],
       });
 
       setInitialized(true);

@@ -433,45 +433,8 @@ export const antiFingerprintConfig: AntiFingerprintConfig = {
 // ============================================================
 
 export function generateSecurityEvents(): SecurityEvent[] {
-  const events: SecurityEvent[] = [];
-  const types: SecurityEvent['type'][] = ['blocked', 'alert', 'warning', 'info', 'success'];
-  const sources = ['WAF', 'IDS', 'Rate Limiter', 'Cert Validator', 'Anti-Fingerprint', 'IP Filter', 'Input Validator'];
-  const details = [
-    'SQL injection attempt blocked from 192.168.1.45',
-    'XSS payload detected and neutralized',
-    'Rate limit exceeded for IP 10.0.0.23',
-    'Certificate fingerprint verified successfully',
-    'Canvas fingerprint noise injected',
-    'WebRTC leak prevented',
-    'Suspicious user agent blocked',
-    'Path traversal attempt blocked',
-    'TLS 1.0 connection rejected',
-    'Header injection attempt blocked',
-    'Agent isolation violation prevented',
-    'Data exfiltration attempt quarantined',
-    'Brute force attack mitigated',
-    'CSRF token validated',
-    'CORS policy enforced',
-  ];
-  const severities: SecurityEvent['severity'][] = ['critical', 'high', 'medium', 'low', 'info'];
-
-  for (let i = 0; i < 30; i++) {
-    events.push({
-      id: `sec-event-${i}`,
-      timestamp: new Date(Date.now() - Math.random() * 86400000).toISOString(),
-      type: types[Math.floor(Math.random() * types.length)],
-      source: sources[Math.floor(Math.random() * sources.length)],
-      target: `team-${['research', 'code', 'architect', 'algorithm', 'frontend', 'backend'][Math.floor(Math.random() * 6)]}`,
-      rule: `rule-${String(Math.floor(Math.random() * 12) + 1).padStart(3, '0')}`,
-      details: details[Math.floor(Math.random() * details.length)],
-      ip: `${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}`,
-      userAgent: 'Mozilla/5.0 (Secure; Protected)',
-      severity: severities[Math.floor(Math.random() * severities.length)],
-      resolved: Math.random() > 0.3,
-    });
-  }
-
-  return events.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+  // Return empty array - no sample security events
+  return [];
 }
 
 // ============================================================
@@ -479,10 +442,10 @@ export function generateSecurityEvents(): SecurityEvent[] {
 // ============================================================
 
 export const securityMetrics: SecurityMetrics = {
-  totalBlocked: 7834,
-  totalAlerts: 1247,
-  activeThreats: 3,
-  securityScore: 97.8,
+  totalBlocked: 0,
+  totalAlerts: 0,
+  activeThreats: 0,
+  securityScore: 100,
   certificatesValid: 7,
   certificatesExpiring: 0,
   rulesEnabled: 12,
