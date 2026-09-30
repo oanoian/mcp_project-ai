@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { Agent, Task, Team, Provider, TeamType, AgentStatus, TaskStatus } from './schemas';
+import type { Message, TaskDelegation, CommunicationFlow, DecisionRecord } from './communication-schemas';
 
 // ============================================================
 // STATE MANAGEMENT (Zustand Store)
@@ -35,10 +36,16 @@ interface AppState {
   logs: LogEntry[];
   metrics: SystemMetrics;
 
+  // Communication state
+  messages: Message[];
+  taskDelegations: TaskDelegation[];
+  communicationFlows: CommunicationFlow[];
+  decisions: DecisionRecord[];
+
   // UI state
   selectedTeam: TeamType | 'all';
   selectedAgent: string | null;
-  activeView: 'architecture' | 'security' | 'dashboard' | 'teams' | 'providers' | 'tasks' | 'mcp-config' | 'logs';
+  activeView: 'architecture' | 'security' | 'dashboard' | 'teams' | 'providers' | 'tasks' | 'mcp-config' | 'logs' | 'main-ai-console';
   sidebarOpen: boolean;
 
   // Actions
@@ -50,6 +57,10 @@ interface AppState {
   updateAgentStatus: (agentId: string, status: AgentStatus) => void;
   updateTaskStatus: (taskId: string, status: TaskStatus) => void;
   assignTask: (taskId: string, agentId: string) => void;
+  addMessage: (message: Omit<Message, 'id' | 'timestamp'>) => void;
+  addTaskDelegation: (delegation: TaskDelegation) => void;
+  updateTaskDelegation: (id: string, updates: Partial<TaskDelegation>) => void;
+  addDecision: (decision: DecisionRecord) => void;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -68,6 +79,12 @@ export const useAppStore = create<AppState>((set, get) => ({
     activeConnections: 0,
     queueDepth: 0,
   },
+
+  // Communication state
+  messages: [],
+  taskDelegations: [],
+  communicationFlows: [],
+  decisions: [],
 
   selectedTeam: 'all',
   selectedAgent: null,
@@ -97,5 +114,25 @@ export const useAppStore = create<AppState>((set, get) => ({
   assignTask: (taskId, agentId) => set((state) => ({
     tasks: state.tasks.map(t => t.id === taskId ? { ...t, assignedAgent: agentId, status: 'in_progress' as TaskStatus, startedAt: new Date().toISOString() } : t),
     agents: state.agents.map(a => a.id === agentId ? { ...a, currentTaskId: taskId, status: 'working' as AgentStatus } : a),
+  })),
+
+  // Communication actions
+  addMessage: (message) => set((state) => ({
+    messages: [
+      { ...message, id: `msg-${Date.now()}-${Math.random().toString(36).slice(2)}`, timestamp: new Date().toISOString() },
+      ...state.messages,
+    ].slice(0, 100),
+  })),
+
+  addTaskDelegation: (delegation) => set((state) => ({
+    taskDelegations: [delegation, ...state.taskDelegations],
+  })),
+
+  updateTaskDelegation: (id, updates) => set((state) => ({
+    taskDelegations: state.taskDelegations.map(td => td.id === id ? { ...td, ...updates } : td),
+  })),
+
+  addDecision: (decision) => set((state) => ({
+    decisions: [decision, ...state.decisions],
   })),
 }));
