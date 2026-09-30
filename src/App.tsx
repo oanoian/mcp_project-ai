@@ -14,6 +14,7 @@ import { initialProviders, generateAgents, generateTasks, teamConfigs } from './
 import { architectureLayers } from './core/schemas';
 import { securityLayers, type SecurityLayer } from './core/security-schemas';
 import { certificates, securityRules, securityHeaders, generateSecurityEvents, antiFingerprintConfig, securityMetrics } from './core/security-data';
+import { sampleMessages, sampleTaskDelegations, sampleCommunicationFlows, sampleDecisions } from './core/communication-data';
 import { useRealtimeSimulation } from './hooks/useRealtimeSimulation';
 import type { TeamType } from './core/schemas';
 
@@ -60,6 +61,11 @@ export default function App() {
           activeConnections: initialProviders.filter(p => p.status === 'connected').length,
           queueDepth: generatedTasks.filter(t => t.status === 'queued').length,
         },
+        // Initialize communication data
+        messages: sampleMessages,
+        taskDelegations: sampleTaskDelegations,
+        communicationFlows: sampleCommunicationFlows,
+        decisions: sampleDecisions,
       });
 
       // Initial logs
@@ -105,6 +111,7 @@ export default function App() {
   }, []);
 
   const navItems = [
+    { id: 'main-ai-console' as const, icon: Command, label: 'Main AI Console' },
     { id: 'architecture' as const, icon: Layers, label: 'Architecture' },
     { id: 'security' as const, icon: Shield, label: 'Security' },
     { id: 'dashboard' as const, icon: BarChart3, label: 'Dashboard' },
@@ -239,6 +246,7 @@ export default function App() {
               transition={{ duration: 0.2 }}
               className="p-4 lg:p-6 max-w-7xl mx-auto"
             >
+              {activeView === 'main-ai-console' && <MainAIConsoleView />}
               {activeView === 'architecture' && <ArchitectureView />}
               {activeView === 'security' && <SecurityView />}
               {activeView === 'dashboard' && <DashboardView />}
@@ -600,6 +608,372 @@ function ArchitectureView() {
           </motion.div>
         ))}
       </div>
+    </div>
+  );
+}
+
+// Main AI Console View
+function MainAIConsoleView() {
+  const { messages, taskDelegations, communicationFlows, decisions, agents, teams } = useAppStore();
+  const [activeTab, setActiveTab] = useState<'communication' | 'delegations' | 'flows' | 'decisions'>('communication');
+  const [newMessage, setNewMessage] = useState('');
+  const [selectedTeam, setSelectedTeam] = useState<TeamType>('research');
+  const { addToast } = useToastStore();
+
+  const handleSendMessage = () => {
+    if (!newMessage.trim()) return;
+
+    useAppStore.getState().addMessage({
+      from: 'main-ai',
+      to: `${selectedTeam}-team`,
+      role: 'main_ai',
+      type: 'task_delegation',
+      channel: 'main_to_team',
+      content: newMessage,
+      priority: 'high',
+      status: 'sent',
+      teamId: selectedTeam,
+    });
+
+    addToast({
+      type: 'success',
+      title: 'Task Delegated',
+      message: `Task sent to ${selectedTeam} team`,
+    });
+
+    setNewMessage('');
+  };
+
+  return (
+    <div className="space-y-6 animate-slide-up">
+      <div>
+        <h2 className="text-2xl font-bold flex items-center gap-2">
+          <Command className="w-6 h-6 text-violet-400" />
+          <span className="text-gradient">Main AI Console</span>
+        </h2>
+        <p className="text-sm text-gray-500 mt-1">Real-time orchestration and communication with the 60-agent swarm</p>
+      </div>
+
+      {/* Quick Stats */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <MetricCard icon={<Command className="w-4 h-4" />} label="Active Delegations" value={taskDelegations.filter(td => td.status === 'in_progress').length.toString()} change="Tasks in progress" color="violet" />
+        <MetricCard icon={<CheckCircle2 className="w-4 h-4" />} label="Completed" value={taskDelegations.filter(td => td.status === 'completed').length.toString()} change="Successfully synthesized" color="green" />
+        <MetricCard icon={<Activity className="w-4 h-4" />} label="Messages" value={messages.length.toString()} change="Last 24h" color="cyan" />
+        <MetricCard icon={<TrendingUp className="w-4 h-4" />} label="Decisions" value={decisions.length.toString()} change="Based on synthesis" color="amber" />
+      </div>
+
+      {/* Tabs */}
+      <div className="flex gap-2 border-b border-white/5 pb-2">
+        {[
+          { id: 'communication', label: 'Communication', icon: Command },
+          { id: 'delegations', label: 'Task Delegations', icon: GitBranch },
+          { id: 'flows', label: 'Communication Flows', icon: Activity },
+          { id: 'decisions', label: 'Decisions', icon: CheckCircle2 },
+        ].map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id as any)}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-medium transition-all ${
+              activeTab === tab.id
+                ? 'bg-violet-500/20 text-violet-300 border border-violet-500/30'
+                : 'bg-white/5 text-gray-400 hover:text-white'
+            }`}
+          >
+            <tab.icon className="w-3.5 h-3.5" />
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Tab Content */}
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={activeTab}
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -10 }}
+          transition={{ duration: 0.2 }}
+        >
+          {activeTab === 'communication' && (
+            <div className="space-y-4">
+              {/* Message Input */}
+              <div className="glass rounded-xl p-4">
+                <h3 className="text-sm font-bold mb-3 flex items-center gap-2">
+                  <Command className="w-4 h-4 text-violet-400" />
+                  Delegate Task to Team
+                </h3>
+                <div className="flex gap-2 mb-3">
+                  <select
+                    value={selectedTeam}
+                    onChange={e => setSelectedTeam(e.target.value as TeamType)}
+                    className="px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-xs text-white outline-none focus:border-violet-500"
+                  >
+                    {teams.map(team => (
+                      <option key={team.id} value={team.id} className="bg-gray-900">
+                        {team.icon} {team.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={newMessage}
+                    onChange={e => setNewMessage(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && handleSendMessage()}
+                    placeholder="Describe the task or query..."
+                    className="flex-1 px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder:text-gray-600 outline-none focus:border-violet-500"
+                  />
+                  <button
+                    onClick={handleSendMessage}
+                    className="px-4 py-2 bg-violet-500/20 hover:bg-violet-500/30 border border-violet-500/30 rounded-lg text-sm text-violet-300 transition-all"
+                  >
+                    Send
+                  </button>
+                </div>
+              </div>
+
+              {/* Message Stream */}
+              <div className="glass rounded-xl p-4">
+                <h3 className="text-sm font-bold mb-3 flex items-center gap-2">
+                  <Activity className="w-4 h-4 text-cyan-400" />
+                  Real-Time Communication Stream
+                </h3>
+                <div className="space-y-2 max-h-[500px] overflow-y-auto">
+                  {messages.map(msg => (
+                    <motion.div
+                      key={msg.id}
+                      initial={{ opacity: 0, x: msg.role === 'main_ai' ? 20 : -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      className={`flex ${msg.role === 'main_ai' ? 'justify-end' : 'justify-start'}`}
+                    >
+                      <div className={`max-w-[70%] rounded-lg p-3 ${
+                        msg.role === 'main_ai'
+                          ? 'bg-violet-500/20 border border-violet-500/30'
+                          : msg.role === 'team_lead'
+                          ? 'bg-cyan-500/20 border border-cyan-500/30'
+                          : msg.role === 'agent'
+                          ? 'bg-green-500/20 border border-green-500/30'
+                          : 'bg-gray-500/20 border border-gray-500/30'
+                      }`}>
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-[10px] font-bold text-gray-400">{msg.from}</span>
+                          <span className="text-[9px] text-gray-600">→</span>
+                          <span className="text-[10px] font-bold text-gray-400">{msg.to}</span>
+                          <span className={`text-[9px] px-1.5 py-0.5 rounded ${
+                            msg.type === 'task_delegation' ? 'bg-violet-500/20 text-violet-400' :
+                            msg.type === 'task_result' ? 'bg-green-500/20 text-green-400' :
+                            msg.type === 'synthesis_result' ? 'bg-amber-500/20 text-amber-400' :
+                            'bg-gray-500/20 text-gray-400'
+                          }`}>
+                            {msg.type.replace('_', ' ')}
+                          </span>
+                        </div>
+                        <div className="text-xs text-gray-300 whitespace-pre-wrap">{msg.content}</div>
+                        <div className="text-[9px] text-gray-600 mt-1">
+                          {new Date(msg.timestamp).toLocaleTimeString()}
+                        </div>
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'delegations' && (
+            <div className="space-y-3">
+              {taskDelegations.map(delegation => (
+                <motion.div
+                  key={delegation.id}
+                  whileHover={{ scale: 1.01 }}
+                  className="glass rounded-lg p-4 hover:border-white/10 transition-all"
+                >
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-sm font-bold">{delegation.title}</span>
+                        <span className={`text-[9px] px-1.5 py-0.5 rounded ${
+                          delegation.status === 'completed' ? 'bg-green-500/10 text-green-400' :
+                          delegation.status === 'in_progress' ? 'bg-blue-500/10 text-blue-400' :
+                          delegation.status === 'pending' ? 'bg-gray-500/10 text-gray-400' :
+                          'bg-red-500/10 text-red-400'
+                        }`}>
+                          {delegation.status.replace('_', ' ')}
+                        </span>
+                        <span className={`text-[9px] px-1.5 py-0.5 rounded ${
+                          delegation.priority === 'critical' ? 'bg-red-500/10 text-red-400' :
+                          delegation.priority === 'high' ? 'bg-orange-500/10 text-orange-400' :
+                          'bg-blue-500/10 text-blue-400'
+                        }`}>
+                          {delegation.priority}
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-gray-500">{delegation.description}</p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3 text-[10px] mb-3">
+                    <div>
+                      <span className="text-gray-500">Team:</span>
+                      <span className="text-gray-300 ml-2 capitalize">{delegation.team}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-500">Agents:</span>
+                      <span className="text-gray-300 ml-2">{delegation.assignedAgents.length}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-500">Delegated:</span>
+                      <span className="text-gray-300 ml-2">{new Date(delegation.delegatedAt).toLocaleTimeString()}</span>
+                    </div>
+                    {delegation.synthesizedAt && (
+                      <div>
+                        <span className="text-gray-500">Synthesized:</span>
+                        <span className="text-gray-300 ml-2">{new Date(delegation.synthesizedAt).toLocaleTimeString()}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {delegation.results && delegation.results.length > 0 && (
+                    <div className="mt-3 pt-3 border-t border-white/5">
+                      <div className="text-[10px] text-gray-500 mb-2">Agent Results ({delegation.results.length}):</div>
+                      <div className="space-y-2">
+                        {delegation.results.map((result, idx) => (
+                          <div key={idx} className="bg-white/[0.02] rounded p-2">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="text-[9px] font-mono text-violet-400">{result.agentId}</span>
+                              <span className="text-[9px] text-gray-600">Confidence: {Math.round(result.confidence * 100)}%</span>
+                            </div>
+                            <div className="text-[10px] text-gray-400">{result.result}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {delegation.synthesizedResult && (
+                    <div className="mt-3 pt-3 border-t border-white/5">
+                      <div className="text-[10px] text-amber-400 mb-1 font-bold">Synthesized Result:</div>
+                      <div className="text-xs text-gray-300 bg-amber-500/5 border border-amber-500/20 rounded p-3">
+                        {delegation.synthesizedResult}
+                      </div>
+                    </div>
+                  )}
+                </motion.div>
+              ))}
+            </div>
+          )}
+
+          {activeTab === 'flows' && (
+            <div className="space-y-3">
+              {communicationFlows.map(flow => (
+                <motion.div
+                  key={flow.id}
+                  whileHover={{ scale: 1.01 }}
+                  className="glass rounded-lg p-4 hover:border-white/10 transition-all"
+                >
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-bold">Communication Flow</span>
+                      <span className={`text-[9px] px-1.5 py-0.5 rounded ${
+                        flow.status === 'completed' ? 'bg-green-500/10 text-green-400' :
+                        flow.status === 'in_progress' ? 'bg-blue-500/10 text-blue-400' :
+                        'bg-red-500/10 text-red-400'
+                      }`}>
+                        {flow.status.replace('_', ' ')}
+                      </span>
+                    </div>
+                    <span className="text-[10px] text-gray-500">
+                      Duration: {flow.totalDuration > 0 ? `${(flow.totalDuration / 1000).toFixed(1)}s` : 'In progress'}
+                    </span>
+                  </div>
+
+                  <div className="space-y-2">
+                    {flow.flow.map((step, idx) => (
+                      <div key={idx} className="flex items-center gap-3">
+                        <div className="w-6 h-6 rounded-full bg-white/5 flex items-center justify-center text-[10px] font-bold text-gray-400">
+                          {step.step}
+                        </div>
+                        <div className="flex-1 flex items-center gap-2">
+                          <span className="text-[10px] text-violet-400 font-mono">{step.from}</span>
+                          <span className="text-[10px] text-gray-600">→</span>
+                          <span className="text-[10px] text-cyan-400 font-mono">{step.to}</span>
+                        </div>
+                        <div className="flex-1">
+                          <span className="text-[10px] text-gray-300">{step.action}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[9px] text-gray-600">{step.duration > 0 ? `${(step.duration / 1000).toFixed(1)}s` : '—'}</span>
+                          <div className={`w-2 h-2 rounded-full ${
+                            step.status === 'completed' ? 'bg-green-400' :
+                            step.status === 'pending' ? 'bg-gray-500' :
+                            'bg-red-400'
+                          }`}></div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          )}
+
+          {activeTab === 'decisions' && (
+            <div className="space-y-3">
+              {decisions.map(decision => (
+                <motion.div
+                  key={decision.id}
+                  whileHover={{ scale: 1.01 }}
+                  className="glass rounded-lg p-4 hover:border-white/10 transition-all"
+                >
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex-1">
+                      <div className="text-sm font-bold mb-1">{decision.decision}</div>
+                      <div className="text-[10px] text-gray-500">{decision.rationale}</div>
+                    </div>
+                    <div className="text-[10px] text-amber-400 font-mono">
+                      {Math.round(decision.confidence * 100)}% confidence
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3 text-[10px] mb-3">
+                    <div>
+                      <span className="text-gray-500">Based on:</span>
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        {decision.basedOn.map((id, idx) => (
+                          <span key={idx} className="px-1.5 py-0.5 bg-violet-500/10 text-violet-400 rounded text-[9px]">
+                            {id}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <span className="text-gray-500">Impact:</span>
+                      <div className="text-gray-300 mt-1">{decision.impact}</div>
+                    </div>
+                  </div>
+
+                  <div className="pt-3 border-t border-white/5">
+                    <div className="text-[10px] text-gray-500 mb-2">Next Steps:</div>
+                    <div className="space-y-1">
+                      {decision.nextSteps.map((step, idx) => (
+                        <div key={idx} className="flex items-center gap-2 text-[10px] text-gray-400">
+                          <div className="w-1 h-1 rounded-full bg-violet-400"></div>
+                          {step}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="text-[9px] text-gray-600 mt-3">
+                    Made at: {new Date(decision.timestamp).toLocaleString()}
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          )}
+        </motion.div>
+      </AnimatePresence>
     </div>
   );
 }
