@@ -1,13 +1,17 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Activity, Server, Cpu, Network, Shield, Layers,
-  ChevronRight, Zap, Clock,
-  GitBranch, Box, Terminal, BarChart3, Settings, Radio
+  ChevronRight, Zap, Clock, GitBranch, Box, Terminal,
+  BarChart3, Settings, Radio, Search, Command, X,
+  CheckCircle2, AlertCircle, Info, TrendingUp, Users,
+  Database, Wifi, Play, Pause, RefreshCw
 } from 'lucide-react';
 import { useAppStore } from './core/store';
+import { useToastStore } from './components/Toast';
 import { initialProviders, generateAgents, generateTasks, teamConfigs } from './core/data';
 import { architectureLayers } from './core/schemas';
+import { useRealtimeSimulation } from './hooks/useRealtimeSimulation';
 import type { TeamType } from './core/schemas';
 
 export default function App() {
@@ -17,10 +21,13 @@ export default function App() {
   } = useAppStore();
 
   const [initialized, setInitialized] = useState(false);
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+
+  // Initialize real-time simulation
+  useRealtimeSimulation();
 
   useEffect(() => {
     if (!initialized) {
-      const store = useAppStore.getState();
       const generatedAgents = generateAgents();
       const generatedTasks = generateTasks();
 
@@ -52,7 +59,7 @@ export default function App() {
         },
       });
 
-      // Generate initial logs
+      // Initial logs
       const logMessages = [
         { level: 'info' as const, source: 'orchestrator', message: 'MCP Server initialized with 60 agents across 6 teams' },
         { level: 'info' as const, source: 'gateway', message: 'Connected to 16 free LLM API providers' },
@@ -72,12 +79,27 @@ export default function App() {
             team: 'system',
             message: msg.message,
           });
-        }, i * 300);
+        }, i * 200);
       });
 
       setInitialized(true);
     }
   }, [initialized]);
+
+  // Keyboard shortcut for command palette
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        setCommandPaletteOpen(prev => !prev);
+      }
+      if (e.key === 'Escape') {
+        setCommandPaletteOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   const navItems = [
     { id: 'architecture' as const, icon: Layers, label: 'Architecture' },
@@ -89,10 +111,12 @@ export default function App() {
     { id: 'logs' as const, icon: Terminal, label: 'System Logs' },
   ];
 
+  const workingAgents = agents.filter(a => a.status === 'working').length;
+
   return (
-    <div className="min-h-screen bg-[#0a0a0f] text-white flex flex-col font-sans">
+    <div className="min-h-screen bg-[#06060a] text-white flex flex-col font-sans noise">
       {/* Top Bar */}
-      <header className="bg-[#0d0d14]/90 backdrop-blur-xl border-b border-white/5 sticky top-0 z-50">
+      <header className="glass-strong sticky top-0 z-50 border-b border-white/5">
         <div className="flex items-center justify-between px-4 h-14">
           <div className="flex items-center gap-3">
             <button onClick={toggleSidebar} className="p-2 hover:bg-white/5 rounded-lg transition-colors lg:hidden">
@@ -100,27 +124,47 @@ export default function App() {
             </button>
             <div className="flex items-center gap-2.5">
               <div className="relative">
-                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500 via-purple-500 to-cyan-500 flex items-center justify-center">
-                  <Box className="w-4 h-4 text-white" />
+                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-violet-500 via-purple-500 to-cyan-500 flex items-center justify-center glow-violet">
+                  <Box className="w-5 h-5 text-white" />
                 </div>
-                <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-green-400 rounded-full border-2 border-[#0d0d14]"></div>
+                <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-400 rounded-full border-2 border-[#06060a] animate-pulse"></div>
               </div>
               <div>
-                <h1 className="text-sm font-bold tracking-tight">MCP Swarm Server</h1>
+                <h1 className="text-sm font-bold tracking-tight text-gradient">MCP Swarm Server</h1>
                 <p className="text-[10px] text-gray-500 -mt-0.5">60-Agent Orchestration • v1.0.0</p>
               </div>
             </div>
           </div>
 
           <div className="flex items-center gap-3">
-            <div className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-green-500/10 border border-green-500/20 rounded-full">
+            {/* Command Palette Trigger */}
+            <button
+              onClick={() => setCommandPaletteOpen(true)}
+              className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg transition-all text-xs text-gray-400"
+            >
+              <Search className="w-3.5 h-3.5" />
+              <span>Quick actions...</span>
+              <kbd className="px-1.5 py-0.5 bg-white/5 rounded text-[10px]">⌘K</kbd>
+            </button>
+
+            <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 bg-green-500/10 border border-green-500/20 rounded-full">
               <Radio className="w-3 h-3 text-green-400 animate-pulse" />
-              <span className="text-[11px] text-green-400 font-medium">All Systems Operational</span>
+              <span className="text-[11px] text-green-400 font-medium">Live</span>
             </div>
+
             <div className="hidden sm:flex items-center gap-4 text-[11px] text-gray-500">
-              <span className="flex items-center gap-1"><Cpu className="w-3 h-3" />{metrics.messagesPerSecond} msg/s</span>
-              <span className="flex items-center gap-1"><Activity className="w-3 h-3" />{metrics.avgLatency}ms avg</span>
-              <span className="flex items-center gap-1"><Shield className="w-3 h-3" />{metrics.systemUptime}%</span>
+              <span className="flex items-center gap-1">
+                <Cpu className="w-3 h-3" />
+                {Math.round(metrics.messagesPerSecond)} msg/s
+              </span>
+              <span className="flex items-center gap-1">
+                <Activity className="w-3 h-3" />
+                {Math.round(metrics.avgLatency)}ms
+              </span>
+              <span className="flex items-center gap-1">
+                <Users className="w-3 h-3" />
+                {workingAgents}/60
+              </span>
             </div>
           </div>
         </div>
@@ -135,16 +179,16 @@ export default function App() {
               animate={{ x: 0, opacity: 1 }}
               exit={{ x: -240, opacity: 0 }}
               transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-              className="w-56 bg-[#0d0d14] border-r border-white/5 flex flex-col shrink-0 fixed lg:static inset-y-0 left-0 z-40 pt-14 lg:pt-0"
+              className="w-56 glass border-r border-white/5 flex flex-col shrink-0 fixed lg:static inset-y-0 left-0 z-40 pt-14 lg:pt-0"
             >
               <nav className="p-2 space-y-0.5 flex-1">
                 {navItems.map(item => (
                   <button
                     key={item.id}
                     onClick={() => { setActiveView(item.id); if (window.innerWidth < 1024) toggleSidebar(); }}
-                    className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] transition-all ${
+                    className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-[13px] transition-all ${
                       activeView === item.id
-                        ? 'bg-violet-500/15 text-violet-300 border border-violet-500/20'
+                        ? 'bg-gradient-to-r from-violet-500/20 to-cyan-500/10 text-white border border-violet-500/30 glow-violet'
                         : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'
                     }`}
                   >
@@ -155,13 +199,12 @@ export default function App() {
                 ))}
               </nav>
 
-              {/* Sidebar Footer Stats */}
               <div className="p-3 border-t border-white/5 space-y-2">
                 <div className="text-[10px] text-gray-600 uppercase tracking-wider font-medium">System</div>
                 <div className="space-y-1.5">
                   <div className="flex justify-between text-[11px]">
                     <span className="text-gray-500">Agents</span>
-                    <span className="text-green-400">{agents.filter(a => a.status === 'working').length}/60</span>
+                    <span className="text-green-400">{workingAgents}/60</span>
                   </div>
                   <div className="flex justify-between text-[11px]">
                     <span className="text-gray-500">Providers</span>
@@ -203,98 +246,268 @@ export default function App() {
           </AnimatePresence>
         </main>
       </div>
+
+      {/* Command Palette */}
+      <CommandPalette open={commandPaletteOpen} onClose={() => setCommandPaletteOpen(false)} />
+
+      {/* Toast Container */}
+      <ToastContainer />
     </div>
   );
 }
 
-// ============================================================
-// ARCHITECTURE VIEW
-// ============================================================
+// Command Palette Component
+function CommandPalette({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const [search, setSearch] = useState('');
+  const { setActiveView } = useAppStore();
+  const { addToast } = useToastStore();
+
+  const commands = useMemo(() => [
+    { id: 'view-architecture', label: 'View Architecture', icon: Layers, action: () => setActiveView('architecture') },
+    { id: 'view-dashboard', label: 'View Dashboard', icon: BarChart3, action: () => setActiveView('dashboard') },
+    { id: 'view-teams', label: 'View Agent Teams', icon: Network, action: () => setActiveView('teams') },
+    { id: 'view-providers', label: 'View API Providers', icon: Server, action: () => setActiveView('providers') },
+    { id: 'view-tasks', label: 'View Task Queue', icon: GitBranch, action: () => setActiveView('tasks') },
+    { id: 'view-config', label: 'View MCP Config', icon: Settings, action: () => setActiveView('mcp-config') },
+    { id: 'view-logs', label: 'View System Logs', icon: Terminal, action: () => setActiveView('logs') },
+    { id: 'action-refresh', label: 'Refresh All Data', icon: RefreshCw, action: () => addToast({ type: 'info', title: 'Refreshing data...' }) },
+    { id: 'action-pause', label: 'Pause Simulation', icon: Pause, action: () => addToast({ type: 'warning', title: 'Simulation paused' }) },
+    { id: 'action-resume', label: 'Resume Simulation', icon: Play, action: () => addToast({ type: 'success', title: 'Simulation resumed' }) },
+  ], [setActiveView, addToast]);
+
+  const filtered = commands.filter(cmd =>
+    cmd.label.toLowerCase().includes(search.toLowerCase())
+  );
+
+  if (!open) return null;
+
+  return (
+    <AnimatePresence>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 z-[100] flex items-start justify-center pt-[20vh] px-4"
+        onClick={onClose}
+      >
+        <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+        <motion.div
+          initial={{ scale: 0.95, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          exit={{ scale: 0.95, opacity: 0 }}
+          className="relative w-full max-w-lg glass-strong rounded-xl overflow-hidden shadow-2xl"
+          onClick={e => e.stopPropagation()}
+        >
+          <div className="flex items-center gap-3 px-4 py-3 border-b border-white/5">
+            <Search className="w-4 h-4 text-gray-500" />
+            <input
+              type="text"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Type a command or search..."
+              className="flex-1 bg-transparent outline-none text-sm placeholder:text-gray-600"
+              autoFocus
+            />
+            <kbd className="px-2 py-0.5 bg-white/5 rounded text-[10px] text-gray-500">ESC</kbd>
+          </div>
+          <div className="max-h-80 overflow-y-auto p-2">
+            {filtered.map(cmd => (
+              <button
+                key={cmd.id}
+                onClick={() => { cmd.action(); onClose(); }}
+                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-white/5 transition-colors text-left"
+              >
+                <cmd.icon className="w-4 h-4 text-gray-500" />
+                <span className="text-sm text-gray-300">{cmd.label}</span>
+              </button>
+            ))}
+            {filtered.length === 0 && (
+              <div className="text-center py-8 text-sm text-gray-600">No commands found</div>
+            )}
+          </div>
+        </motion.div>
+      </motion.div>
+    </AnimatePresence>
+  );
+}
+
+// Toast Container
+function ToastContainer() {
+  const { toasts, removeToast } = useToastStore();
+
+  return (
+    <div className="fixed bottom-4 right-4 z-[90] space-y-2 max-w-sm">
+      <AnimatePresence>
+        {toasts.map(toast => (
+          <motion.div
+            key={toast.id}
+            initial={{ opacity: 0, x: 100, scale: 0.9 }}
+            animate={{ opacity: 1, x: 0, scale: 1 }}
+            exit={{ opacity: 0, x: 100, scale: 0.9 }}
+            className={`glass-strong rounded-lg p-3 shadow-xl border-l-4 ${
+              toast.type === 'success' ? 'border-l-green-500' :
+              toast.type === 'error' ? 'border-l-red-500' :
+              toast.type === 'warning' ? 'border-l-amber-500' :
+              'border-l-blue-500'
+            }`}
+          >
+            <div className="flex items-start gap-2">
+              <div className="mt-0.5">
+                {toast.type === 'success' && <CheckCircle2 className="w-4 h-4 text-green-400" />}
+                {toast.type === 'error' && <AlertCircle className="w-4 h-4 text-red-400" />}
+                {toast.type === 'warning' && <AlertCircle className="w-4 h-4 text-amber-400" />}
+                {toast.type === 'info' && <Info className="w-4 h-4 text-blue-400" />}
+              </div>
+              <div className="flex-1">
+                <div className="text-sm font-medium">{toast.title}</div>
+                {toast.message && <div className="text-xs text-gray-400 mt-0.5">{toast.message}</div>}
+              </div>
+              <button onClick={() => removeToast(toast.id)} className="text-gray-500 hover:text-white">
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </motion.div>
+        ))}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+// Architecture View
 function ArchitectureView() {
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-slide-up">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-bold flex items-center gap-2">
-            <Layers className="w-5 h-5 text-violet-400" />
-            System Architecture
+          <h2 className="text-2xl font-bold flex items-center gap-2">
+            <Layers className="w-6 h-6 text-violet-400" />
+            <span className="text-gradient">System Architecture</span>
           </h2>
           <p className="text-sm text-gray-500 mt-1">8-layer enterprise architecture with 28 core components</p>
         </div>
         <div className="flex gap-2">
-          <span className="text-[10px] px-2 py-1 bg-green-500/10 text-green-400 rounded-full border border-green-500/20">All Active</span>
+          <span className="text-[10px] px-2 py-1 bg-green-500/10 text-green-400 rounded-full border border-green-500/20 flex items-center gap-1">
+            <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse"></div>
+            All Active
+          </span>
         </div>
       </div>
 
-      {/* Architecture Flow Diagram */}
-      <div className="bg-[#0d0d14] border border-white/5 rounded-xl p-6">
-        <h3 className="text-sm font-medium text-gray-400 mb-4">Data Flow: Lead AI → Teams → Agents → Providers</h3>
-        <div className="flex flex-col items-center gap-2">
-          {/* Lead AI */}
-          <div className="px-6 py-3 bg-gradient-to-r from-violet-600/20 to-cyan-600/20 border border-violet-500/30 rounded-xl">
-            <div className="text-center">
-              <div className="text-sm font-bold text-violet-300">🧠 Main Lead AI (MCP Client)</div>
-              <div className="text-[10px] text-gray-500">Orchestrates all operations via JSON-RPC 2.0</div>
-            </div>
-          </div>
+      {/* Animated Architecture Flow */}
+      <div className="glass rounded-xl p-6 relative overflow-hidden">
+        <div className="absolute inset-0 opacity-5">
+          <div className="absolute inset-0 animate-grid" style={{
+            backgroundImage: 'linear-gradient(rgba(139, 92, 246, 0.3) 1px, transparent 1px), linear-gradient(90deg, rgba(139, 92, 246, 0.3) 1px, transparent 1px)',
+            backgroundSize: '40px 40px'
+          }}></div>
+        </div>
 
-          <div className="w-px h-6 bg-gradient-to-b from-violet-500/50 to-transparent"></div>
+        <h3 className="text-sm font-medium text-gray-400 mb-6 relative">Data Flow: Lead AI → Teams → Agents → Providers</h3>
+        
+        <div className="flex flex-col items-center gap-3 relative">
+          {/* Lead AI */}
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="px-6 py-4 bg-gradient-to-r from-violet-600/20 to-cyan-600/20 border border-violet-500/30 rounded-xl glow-violet"
+          >
+            <div className="text-center">
+              <div className="text-base font-bold text-violet-300">🧠 Main Lead AI (MCP Client)</div>
+              <div className="text-[11px] text-gray-500">Orchestrates all operations via JSON-RPC 2.0</div>
+            </div>
+          </motion.div>
+
+          <div className="w-px h-8 bg-gradient-to-b from-violet-500/50 to-transparent"></div>
 
           {/* Transport */}
-          <div className="px-4 py-2 bg-cyan-500/10 border border-cyan-500/20 rounded-lg text-xs text-cyan-400">
+          <motion.div
+            initial={{ x: -20, opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            transition={{ delay: 0.1 }}
+            className="px-4 py-2 bg-cyan-500/10 border border-cyan-500/20 rounded-lg text-xs text-cyan-400"
+          >
             Transport Layer: stdio | SSE | WebSocket
-          </div>
+          </motion.div>
 
-          <div className="w-px h-4 bg-cyan-500/30"></div>
+          <div className="w-px h-6 bg-cyan-500/30"></div>
 
           {/* Protocol */}
-          <div className="px-4 py-2 bg-violet-500/10 border border-violet-500/20 rounded-lg text-xs text-violet-400">
+          <motion.div
+            initial={{ x: 20, opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            transition={{ delay: 0.2 }}
+            className="px-4 py-2 bg-violet-500/10 border border-violet-500/20 rounded-lg text-xs text-violet-400"
+          >
             Protocol Layer: JSON-RPC 2.0 + Zod Validation
-          </div>
+          </motion.div>
 
-          <div className="w-px h-4 bg-violet-500/30"></div>
+          <div className="w-px h-6 bg-violet-500/30"></div>
 
           {/* Orchestration */}
-          <div className="px-4 py-2 bg-amber-500/10 border border-amber-500/20 rounded-lg text-xs text-amber-400">
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ delay: 0.3 }}
+            className="px-4 py-2 bg-amber-500/10 border border-amber-500/20 rounded-lg text-xs text-amber-400"
+          >
             Orchestration: Task Router + Scheduler + Synthesizer
-          </div>
+          </motion.div>
 
-          <div className="w-px h-4 bg-amber-500/30"></div>
+          <div className="w-px h-6 bg-amber-500/30"></div>
 
-          {/* Teams */}
+          {/* Teams Grid */}
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2 w-full">
-            {teamConfigs.map(tc => (
-              <div key={tc.id} className={`px-3 py-2 bg-gradient-to-br ${tc.gradient} rounded-lg bg-opacity-10`}
-                style={{ background: `linear-gradient(135deg, ${tc.color}15, ${tc.color}05)`, border: `1px solid ${tc.color}30` }}>
+            {teamConfigs.map((tc, idx) => (
+              <motion.div
+                key={tc.id}
+                initial={{ y: 20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ delay: 0.4 + idx * 0.05 }}
+                className="px-3 py-3 rounded-lg hover:scale-105 transition-transform cursor-pointer"
+                style={{ 
+                  background: `linear-gradient(135deg, ${tc.color}15, ${tc.color}05)`,
+                  border: `1px solid ${tc.color}30`
+                }}
+              >
                 <div className="text-center">
-                  <div className="text-lg">{tc.icon}</div>
-                  <div className="text-[10px] font-medium mt-0.5" style={{ color: tc.color }}>{tc.name.split(' ')[0]}</div>
+                  <div className="text-2xl mb-1">{tc.icon}</div>
+                  <div className="text-[11px] font-medium" style={{ color: tc.color }}>{tc.name.split(' ')[0]}</div>
                   <div className="text-[9px] text-gray-500">10 agents</div>
                 </div>
-              </div>
+              </motion.div>
             ))}
           </div>
 
-          <div className="w-px h-4 bg-green-500/30"></div>
+          <div className="w-px h-6 bg-green-500/30"></div>
 
           {/* Provider Gateway */}
-          <div className="px-4 py-2 bg-blue-500/10 border border-blue-500/20 rounded-lg text-xs text-blue-400">
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ delay: 0.7 }}
+            className="px-4 py-2 bg-blue-500/10 border border-blue-500/20 rounded-lg text-xs text-blue-400"
+          >
             Provider Gateway: Connection Pool + Rate Limiter + Circuit Breaker
-          </div>
+          </motion.div>
 
-          <div className="w-px h-4 bg-blue-500/30"></div>
+          <div className="w-px h-6 bg-blue-500/30"></div>
 
           {/* Providers */}
-          <div className="flex flex-wrap justify-center gap-1.5">
+          <motion.div
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ delay: 0.8 }}
+            className="flex flex-wrap justify-center gap-1.5"
+          >
             {initialProviders.slice(0, 8).map(p => (
-              <span key={p.id} className="text-[9px] px-2 py-0.5 bg-white/5 border border-white/10 rounded text-gray-400">
+              <span key={p.id} className="text-[9px] px-2 py-0.5 bg-white/5 border border-white/10 rounded text-gray-400 hover:bg-white/10 transition-colors">
                 {p.name}
               </span>
             ))}
             <span className="text-[9px] px-2 py-0.5 bg-white/5 border border-white/10 rounded text-gray-500">
               +8 more
             </span>
-          </div>
+          </motion.div>
         </div>
       </div>
 
@@ -306,11 +519,11 @@ function ArchitectureView() {
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: idx * 0.05 }}
-            className="bg-[#0d0d14] border border-white/5 rounded-xl overflow-hidden"
+            className="glass rounded-xl overflow-hidden hover:border-white/10 transition-all"
           >
             <div className="flex items-center gap-3 px-4 py-3 border-b border-white/5"
               style={{ borderLeftColor: layer.color, borderLeftWidth: '3px' }}>
-              <div className="w-6 h-6 rounded-md flex items-center justify-center text-[10px] font-bold"
+              <div className="w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold"
                 style={{ backgroundColor: `${layer.color}20`, color: layer.color }}>
                 {idx + 1}
               </div>
@@ -324,7 +537,7 @@ function ArchitectureView() {
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-px bg-white/5">
               {layer.components.map(comp => (
-                <div key={comp.id} className="bg-[#0d0d14] p-3 hover:bg-white/[0.02] transition-colors">
+                <div key={comp.id} className="bg-[#06060a] p-3 hover:bg-white/[0.02] transition-colors">
                   <div className="flex items-center gap-2 mb-1.5">
                     <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: comp.status === 'active' ? '#10b981' : '#f59e0b' }}></div>
                     <span className="text-xs font-medium">{comp.name}</span>
@@ -340,43 +553,11 @@ function ArchitectureView() {
           </motion.div>
         ))}
       </div>
-
-      {/* Technology Stack */}
-      <div className="bg-[#0d0d14] border border-white/5 rounded-xl p-6">
-        <h3 className="text-sm font-bold mb-4 flex items-center gap-2">
-          <Zap className="w-4 h-4 text-amber-400" />
-          Technology Stack
-        </h3>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          {[
-            { category: 'Core Runtime', items: ['Node.js 20+', 'TypeScript 5.x', 'ESM Modules'] },
-            { category: 'MCP Protocol', items: ['@modelcontextprotocol/sdk', 'JSON-RPC 2.0', 'zod (validation)'] },
-            { category: 'State & Queue', items: ['zustand', 'bullmq', 'ioredis'] },
-            { category: 'HTTP/Transport', items: ['@hono/node-server', 'ws', 'socket.io'] },
-            { category: 'AI/LLM', items: ['OpenAI SDK', 'tiktoken', 'langchain'] },
-            { category: 'Resilience', items: ['opossum (circuit)', 'rate-limiter-flexible', 'undici'] },
-            { category: 'Observability', items: ['pino', '@opentelemetry/sdk', 'prom-client'] },
-            { category: 'Frontend', items: ['React 19', 'framer-motion', 'lucide-react'] },
-          ].map(group => (
-            <div key={group.category} className="space-y-1.5">
-              <div className="text-[10px] text-gray-500 uppercase tracking-wider font-medium">{group.category}</div>
-              {group.items.map(item => (
-                <div key={item} className="text-xs text-gray-300 flex items-center gap-1.5">
-                  <div className="w-1 h-1 rounded-full bg-violet-500/50"></div>
-                  {item}
-                </div>
-              ))}
-            </div>
-          ))}
-        </div>
-      </div>
     </div>
   );
 }
 
-// ============================================================
-// DASHBOARD VIEW
-// ============================================================
+// Dashboard View
 function DashboardView() {
   const { agents, tasks, providers, metrics, teams } = useAppStore();
 
@@ -387,27 +568,30 @@ function DashboardView() {
   const inProgressTasks = tasks.filter(t => t.status === 'in_progress').length;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-slide-up">
       <div>
-        <h2 className="text-xl font-bold flex items-center gap-2">
-          <BarChart3 className="w-5 h-5 text-cyan-400" />
-          System Dashboard
+        <h2 className="text-2xl font-bold flex items-center gap-2">
+          <BarChart3 className="w-6 h-6 text-cyan-400" />
+          <span className="text-gradient">System Dashboard</span>
         </h2>
         <p className="text-sm text-gray-500 mt-1">Real-time metrics across all 60 agents and 16 providers</p>
       </div>
 
       {/* Metric Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <MetricCard icon={<Cpu className="w-4 h-4" />} label="Working Agents" value={`${workingAgents}/60`} change="+3" color="green" />
-        <MetricCard icon={<GitBranch className="w-4 h-4" />} label="Tasks In Progress" value={`${inProgressTasks}`} change={`${completedTasks} done`} color="violet" />
+        <MetricCard icon={<Cpu className="w-4 h-4" />} label="Working Agents" value={`${workingAgents}/60`} change="+3 this hour" color="green" />
+        <MetricCard icon={<GitBranch className="w-4 h-4" />} label="Tasks In Progress" value={`${inProgressTasks}`} change={`${completedTasks} completed`} color="violet" />
         <MetricCard icon={<Server className="w-4 h-4" />} label="Active Providers" value={`${providers.filter(p => p.status === 'connected').length}/16`} change="99.7% uptime" color="cyan" />
-        <MetricCard icon={<Zap className="w-4 h-4" />} label="Throughput" value={`${metrics.messagesPerSecond}/s`} change={`${metrics.avgLatency}ms avg`} color="amber" />
+        <MetricCard icon={<Zap className="w-4 h-4" />} label="Throughput" value={`${Math.round(metrics.messagesPerSecond)}/s`} change={`${Math.round(metrics.avgLatency)}ms avg`} color="amber" />
       </div>
 
       {/* Agent Status Distribution */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div className="bg-[#0d0d14] border border-white/5 rounded-xl p-5">
-          <h3 className="text-sm font-semibold mb-4">Agent Status Distribution</h3>
+        <div className="glass rounded-xl p-5">
+          <h3 className="text-sm font-semibold mb-4 flex items-center gap-2">
+            <Activity className="w-4 h-4 text-green-400" />
+            Agent Status Distribution
+          </h3>
           <div className="space-y-3">
             {[
               { label: 'Working', count: workingAgents, color: '#10b981', bg: 'bg-green-500' },
@@ -433,8 +617,11 @@ function DashboardView() {
           </div>
         </div>
 
-        <div className="bg-[#0d0d14] border border-white/5 rounded-xl p-5">
-          <h3 className="text-sm font-semibold mb-4">Team Performance</h3>
+        <div className="glass rounded-xl p-5">
+          <h3 className="text-sm font-semibold mb-4 flex items-center gap-2">
+            <TrendingUp className="w-4 h-4 text-violet-400" />
+            Team Performance
+          </h3>
           <div className="space-y-3">
             {teams.map(team => (
               <div key={team.id} className="flex items-center gap-3">
@@ -457,11 +644,14 @@ function DashboardView() {
       </div>
 
       {/* Provider Latency */}
-      <div className="bg-[#0d0d14] border border-white/5 rounded-xl p-5">
-        <h3 className="text-sm font-semibold mb-4">Provider Latency (ms)</h3>
+      <div className="glass rounded-xl p-5">
+        <h3 className="text-sm font-semibold mb-4 flex items-center gap-2">
+          <Wifi className="w-4 h-4 text-blue-400" />
+          Provider Latency (ms)
+        </h3>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {providers.sort((a, b) => a.latency - b.latency).map(p => (
-            <div key={p.id} className="bg-white/[0.02] border border-white/5 rounded-lg p-3">
+            <div key={p.id} className="bg-white/[0.02] border border-white/5 rounded-lg p-3 hover:border-white/10 transition-all">
               <div className="flex items-center justify-between mb-1">
                 <span className="text-[11px] font-medium truncate">{p.name}</span>
                 <div className={`w-1.5 h-1.5 rounded-full ${p.status === 'connected' ? 'bg-green-400' : p.status === 'degraded' ? 'bg-amber-400' : 'bg-red-400'}`}></div>
@@ -486,32 +676,32 @@ function MetricCard({ icon, label, value, change, color }: { icon: React.ReactNo
     amber: 'from-amber-500/10 border-amber-500/20 text-amber-400',
   };
   return (
-    <div className={`bg-gradient-to-br ${colorMap[color]} border rounded-xl p-4`}>
+    <motion.div
+      whileHover={{ scale: 1.02 }}
+      className={`bg-gradient-to-br ${colorMap[color]} border rounded-xl p-4 cursor-pointer`}
+    >
       <div className="flex items-center gap-2 mb-2 text-gray-400">{icon}<span className="text-[11px]">{label}</span></div>
       <div className="text-2xl font-bold text-white">{value}</div>
       <div className="text-[10px] text-gray-500 mt-1">{change}</div>
-    </div>
+    </motion.div>
   );
 }
 
-// ============================================================
-// TEAMS VIEW
-// ============================================================
+// Teams View
 function TeamsView({ selectedTeam, setSelectedTeam }: { selectedTeam: TeamType | 'all'; setSelectedTeam: (t: TeamType | 'all') => void }) {
-  const { teams, agents } = useAppStore();
+  const { teams } = useAppStore();
   const filtered = selectedTeam === 'all' ? teams : teams.filter(t => t.id === selectedTeam);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-slide-up">
       <div>
-        <h2 className="text-xl font-bold flex items-center gap-2">
-          <Network className="w-5 h-5 text-green-400" />
-          Agent Teams
+        <h2 className="text-2xl font-bold flex items-center gap-2">
+          <Network className="w-6 h-6 text-green-400" />
+          <span className="text-gradient">Agent Teams</span>
         </h2>
         <p className="text-sm text-gray-500 mt-1">6 specialized teams × 10 agents each = 60 total agents</p>
       </div>
 
-      {/* Team Filter */}
       <div className="flex flex-wrap gap-2">
         <button onClick={() => setSelectedTeam('all')}
           className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${selectedTeam === 'all' ? 'bg-violet-500/20 text-violet-300 border border-violet-500/30' : 'bg-white/5 text-gray-400 hover:text-white'}`}>
@@ -525,13 +715,17 @@ function TeamsView({ selectedTeam, setSelectedTeam }: { selectedTeam: TeamType |
         ))}
       </div>
 
-      {/* Team Cards */}
       {filtered.map(team => (
-        <div key={team.id} className="bg-[#0d0d14] border border-white/5 rounded-xl overflow-hidden">
+        <motion.div
+          key={team.id}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="glass rounded-xl overflow-hidden"
+        >
           <div className="px-4 py-3 border-b border-white/5 flex items-center justify-between"
             style={{ borderLeftColor: team.color, borderLeftWidth: '3px' }}>
             <div className="flex items-center gap-2">
-              <span className="text-lg">{team.icon}</span>
+              <span className="text-xl">{team.icon}</span>
               <div>
                 <h3 className="text-sm font-bold">{team.name}</h3>
                 <p className="text-[10px] text-gray-500">{team.description}</p>
@@ -545,7 +739,11 @@ function TeamsView({ selectedTeam, setSelectedTeam }: { selectedTeam: TeamType |
 
           <div className="p-3 grid grid-cols-1 md:grid-cols-2 gap-2">
             {team.agents.map(agent => (
-              <div key={agent.id} className="bg-white/[0.02] border border-white/5 rounded-lg p-2.5 hover:border-white/10 transition-all">
+              <motion.div
+                key={agent.id}
+                whileHover={{ scale: 1.02 }}
+                className="bg-white/[0.02] border border-white/5 rounded-lg p-2.5 hover:border-white/10 transition-all cursor-pointer"
+              >
                 <div className="flex items-center justify-between mb-1.5">
                   <div className="flex items-center gap-2">
                     <div className={`w-2 h-2 rounded-full ${
@@ -563,44 +761,45 @@ function TeamsView({ selectedTeam, setSelectedTeam }: { selectedTeam: TeamType |
                 </div>
                 <div className="flex items-center justify-between text-[9px] text-gray-600">
                   <span>🔌 {agent.assignedProvider}</span>
-                  <span>⚡ {agent.avgResponseTime}ms</span>
+                  <span>⚡ {Math.round(agent.avgResponseTime)}ms</span>
                   <span>✅ {agent.tasksCompleted}</span>
                 </div>
-                {/* Health Bar */}
                 <div className="mt-1.5 h-1 bg-white/5 rounded-full overflow-hidden">
                   <div className="h-full rounded-full transition-all" style={{
                     width: `${agent.health.score}%`,
                     backgroundColor: agent.health.score > 80 ? '#10b981' : agent.health.score > 60 ? '#f59e0b' : '#ef4444'
                   }}></div>
                 </div>
-              </div>
+              </motion.div>
             ))}
           </div>
-        </div>
+        </motion.div>
       ))}
     </div>
   );
 }
 
-// ============================================================
-// PROVIDERS VIEW
-// ============================================================
+// Providers View
 function ProvidersView() {
   const { providers } = useAppStore();
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-slide-up">
       <div>
-        <h2 className="text-xl font-bold flex items-center gap-2">
-          <Server className="w-5 h-5 text-blue-400" />
-          API Provider Gateway
+        <h2 className="text-2xl font-bold flex items-center gap-2">
+          <Server className="w-6 h-6 text-blue-400" />
+          <span className="text-gradient">API Provider Gateway</span>
         </h2>
         <p className="text-sm text-gray-500 mt-1">16 free LLM API providers with connection pooling & circuit breakers</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {providers.map(p => (
-          <div key={p.id} className="bg-[#0d0d14] border border-white/5 rounded-xl p-4 hover:border-white/10 transition-all">
+          <motion.div
+            key={p.id}
+            whileHover={{ scale: 1.02 }}
+            className="glass rounded-xl p-4 hover:border-white/10 transition-all cursor-pointer"
+          >
             <div className="flex items-start justify-between mb-3">
               <div>
                 <h3 className="text-sm font-bold">{p.name}</h3>
@@ -644,18 +843,16 @@ function ProvidersView() {
 
             <div className="flex items-center justify-between text-[9px] text-gray-600">
               <span>💳 {p.creditCardRequired ? 'Card required' : 'No card needed'}</span>
-              <span>📊 {p.totalRequests.toLocaleString()} reqs | {p.failedRequests} failed</span>
+              <span>📊 {p.totalRequests.toLocaleString()} reqs</span>
             </div>
-          </div>
+          </motion.div>
         ))}
       </div>
     </div>
   );
 }
 
-// ============================================================
-// TASKS VIEW
-// ============================================================
+// Tasks View
 function TasksView() {
   const { tasks } = useAppStore();
   const [filter, setFilter] = useState<'all' | 'queued' | 'in_progress' | 'completed' | 'failed'>('all');
@@ -663,12 +860,12 @@ function TasksView() {
   const filtered = filter === 'all' ? tasks : tasks.filter(t => t.status === filter);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-slide-up">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-bold flex items-center gap-2">
-            <GitBranch className="w-5 h-5 text-amber-400" />
-            Task Queue
+          <h2 className="text-2xl font-bold flex items-center gap-2">
+            <GitBranch className="w-6 h-6 text-amber-400" />
+            <span className="text-gradient">Task Queue</span>
           </h2>
           <p className="text-sm text-gray-500 mt-1">Priority-based task distribution with BullMQ</p>
         </div>
@@ -684,7 +881,11 @@ function TasksView() {
 
       <div className="space-y-2">
         {filtered.map(task => (
-          <div key={task.id} className="bg-[#0d0d14] border border-white/5 rounded-lg p-3 hover:border-white/10 transition-all">
+          <motion.div
+            key={task.id}
+            whileHover={{ scale: 1.01 }}
+            className="glass rounded-lg p-3 hover:border-white/10 transition-all cursor-pointer"
+          >
             <div className="flex items-center gap-3">
               <div className={`w-2 h-2 rounded-full shrink-0 ${
                 task.status === 'completed' ? 'bg-green-400' :
@@ -714,29 +915,26 @@ function TasksView() {
                 {task.status === 'completed' && task.completedAt ? new Date(task.completedAt).toLocaleTimeString() : '—'}
               </div>
             </div>
-          </div>
+          </motion.div>
         ))}
       </div>
     </div>
   );
 }
 
-// ============================================================
-// MCP CONFIG VIEW
-// ============================================================
+// MCP Config View
 function MCPConfigView() {
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-slide-up">
       <div>
-        <h2 className="text-xl font-bold flex items-center gap-2">
-          <Settings className="w-5 h-5 text-violet-400" />
-          MCP Server Configuration
+        <h2 className="text-2xl font-bold flex items-center gap-2">
+          <Settings className="w-6 h-6 text-violet-400" />
+          <span className="text-gradient">MCP Server Configuration</span>
         </h2>
         <p className="text-sm text-gray-500 mt-1">Complete MCP server implementation with all tools and handlers</p>
       </div>
 
-      {/* Config Files */}
-      <div className="bg-[#0d0d14] border border-white/5 rounded-xl overflow-hidden">
+      <div className="glass rounded-xl overflow-hidden">
         <div className="flex items-center justify-between px-4 py-2 bg-white/[0.02] border-b border-white/5">
           <div className="flex items-center gap-2">
             <Terminal className="w-3.5 h-3.5 text-gray-500" />
@@ -747,33 +945,20 @@ function MCPConfigView() {
         <pre className="p-4 text-[11px] text-gray-300 overflow-x-auto font-mono leading-relaxed max-h-[400px] overflow-y-auto">
 {`import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import { z } from 'zod';
 import { AgentPool } from './agents/pool.js';
 import { TaskQueue } from './queue/bullmq.js';
 import { ProviderGateway } from './gateway/index.js';
-import { ResultSynthesizer } from './orchestration/synthesizer.js';
-import { HealthMonitor } from './monitoring/health.js';
-import { MetricsCollector } from './monitoring/metrics.js';
-import pino from 'pino';
 
-const logger = pino({ level: 'info' });
-
-// Initialize core components
 const agentPool = new AgentPool({ totalAgents: 60, teams: 6 });
 const taskQueue = new TaskQueue({ redis: process.env.REDIS_URL });
 const gateway = new ProviderGateway({ providers: 16 });
-const synthesizer = new ResultSynthesizer();
-const healthMonitor = new HealthMonitor();
-const metrics = new MetricsCollector();
 
-// Create MCP Server
 const server = new Server(
   { name: 'ai-swarm-command', version: '1.0.0' },
   { capabilities: { tools: {}, resources: {}, prompts: {} } }
 );
 
-// Register 6 MCP Tools
 server.setRequestHandler('tools/list', async () => ({
   tools: [
     {
@@ -783,89 +968,18 @@ server.setRequestHandler('tools/list', async () => ({
         team: z.enum(['research','code','architect','algorithm','frontend','backend']),
         task: z.string(),
         priority: z.enum(['critical','high','medium','low']).optional(),
-        agent_slot: z.number().min(1).max(10).optional(),
       },
     },
-    {
-      name: 'broadcast_to_team',
-      description: 'Send message to all agents in a team',
-      inputSchema: { team: z.string(), message: z.string() },
-    },
-    {
-      name: 'get_team_status',
-      description: 'Get real-time status of team agents',
-      inputSchema: { team: z.string().optional() },
-    },
-    {
-      name: 'synthesize_results',
-      description: 'Aggregate results from multiple agents',
-      inputSchema: {
-        teams: z.array(z.string()),
-        type: z.enum(['summary','detailed','code_review']),
-      },
-    },
-    {
-      name: 'research_query',
-      description: 'Mandatory research dispatch (always verified)',
-      inputSchema: {
-        query: z.string(),
-        depth: z.enum(['shallow','moderate','deep','exhaustive']),
-        cross_reference: z.boolean().optional(),
-      },
-    },
-    {
-      name: 'reassign_agent',
-      description: 'Move agent to different team/task',
-      inputSchema: {
-        agent_id: z.string(),
-        new_team: z.string().optional(),
-        new_task: z.string().optional(),
-      },
-    },
+    // ... 5 more tools
   ],
 }));
 
-// Tool execution with full pipeline
-server.setRequestHandler('tools/call', async (request) => {
-  const { name, arguments: args } = request.params;
-  logger.info({ tool: name, args }, 'Tool invoked');
-  
-  try {
-    switch (name) {
-      case 'delegate_task': {
-        const agent = agentPool.getAvailableAgent(args.team, args.agent_slot);
-        const task = await taskQueue.enqueue({ ...args, agentId: agent.id });
-        const result = await agent.execute(task);
-        metrics.recordTask(agent.team, result);
-        return { content: [{ type: 'text', text: JSON.stringify(result) }] };
-      }
-      case 'research_query': {
-        // Mandatory: always goes through research team first
-        const researchers = agentPool.getTeam('research');
-        const results = await Promise.all(
-          researchers.slice(0, args.depth === 'exhaustive' ? 10 : 5)
-            .map(r => r.execute({ query: args.query }))
-        );
-        const synthesized = await synthesizer.merge(results);
-        return { content: [{ type: 'text', text: synthesized }] };
-      }
-      // ... other handlers
-    }
-  } catch (error) {
-    logger.error({ error, tool: name }, 'Tool execution failed');
-    throw error;
-  }
-});
-
-// Start transport
 const transport = new StdioServerTransport();
-await server.connect(transport);
-logger.info('MCP Swarm Server started');`}
+await server.connect(transport);`}
         </pre>
       </div>
 
-      {/* MCP Tools Summary */}
-      <div className="bg-[#0d0d14] border border-white/5 rounded-xl p-5">
+      <div className="glass rounded-xl p-5">
         <h3 className="text-sm font-bold mb-4">Registered MCP Tools (6)</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {[
@@ -876,7 +990,7 @@ logger.info('MCP Swarm Server started');`}
             { name: 'research_query', cat: 'research', desc: 'Mandatory research with cross-referencing' },
             { name: 'reassign_agent', cat: 'lifecycle', desc: 'Move agent between teams/tasks' },
           ].map(tool => (
-            <div key={tool.name} className="bg-white/[0.02] border border-white/5 rounded-lg p-3">
+            <div key={tool.name} className="bg-white/[0.02] border border-white/5 rounded-lg p-3 hover:border-white/10 transition-all">
               <div className="flex items-center gap-2 mb-1">
                 <code className="text-xs text-cyan-400 font-mono">{tool.name}</code>
                 <span className="text-[9px] px-1.5 py-0.5 bg-violet-500/10 text-violet-400 rounded">{tool.cat}</span>
@@ -886,46 +1000,11 @@ logger.info('MCP Swarm Server started');`}
           ))}
         </div>
       </div>
-
-      {/* Package.json dependencies */}
-      <div className="bg-[#0d0d14] border border-white/5 rounded-xl overflow-hidden">
-        <div className="px-4 py-2 bg-white/[0.02] border-b border-white/5">
-          <span className="text-xs font-mono text-gray-400">package.json — dependencies</span>
-        </div>
-        <pre className="p-4 text-[11px] text-gray-300 font-mono leading-relaxed">
-{`{
-  "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.12.0",
-    "zod": "^3.24.0",
-    "bullmq": "^5.30.0",
-    "ioredis": "^5.4.0",
-    "@hono/node-server": "^1.13.0",
-    "ws": "^8.18.0",
-    "socket.io": "^4.8.0",
-    "openai": "^4.77.0",
-    "tiktoken": "^1.0.18",
-    "langchain": "^0.3.0",
-    "opossum": "^8.4.0",
-    "rate-limiter-flexible": "^5.0.0",
-    "undici": "^7.2.0",
-    "pino": "^9.6.0",
-    "@opentelemetry/sdk-node": "^0.57.0",
-    "prom-client": "^15.1.0",
-    "drizzle-orm": "^0.38.0",
-    "xstate": "^5.19.0",
-    "workerpool": "^9.2.0",
-    "lru-cache": "^11.0.0"
-  }
-}`}
-        </pre>
-      </div>
     </div>
   );
 }
 
-// ============================================================
-// LOGS VIEW
-// ============================================================
+// Logs View
 function LogsView() {
   const { logs } = useAppStore();
 
@@ -937,19 +1016,24 @@ function LogsView() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-slide-up">
       <div>
-        <h2 className="text-xl font-bold flex items-center gap-2">
-          <Terminal className="w-5 h-5 text-green-400" />
-          System Logs
+        <h2 className="text-2xl font-bold flex items-center gap-2">
+          <Terminal className="w-6 h-6 text-green-400" />
+          <span className="text-gradient">System Logs</span>
         </h2>
         <p className="text-sm text-gray-500 mt-1">Structured logs from pino with OpenTelemetry tracing</p>
       </div>
 
-      <div className="bg-[#0d0d14] border border-white/5 rounded-xl overflow-hidden">
+      <div className="glass rounded-xl overflow-hidden">
         <div className="divide-y divide-white/[0.03]">
           {logs.map(log => (
-            <div key={log.id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-white/[0.02]">
+            <motion.div
+              key={log.id}
+              initial={{ opacity: 0, x: -10 }}
+              animate={{ opacity: 1, x: 0 }}
+              className="flex items-center gap-3 px-4 py-2.5 hover:bg-white/[0.02]"
+            >
               <span className="text-[10px] text-gray-600 font-mono w-16 shrink-0">
                 {new Date(log.timestamp).toLocaleTimeString()}
               </span>
@@ -958,7 +1042,7 @@ function LogsView() {
               </span>
               <span className="text-[10px] text-violet-400/70 font-mono w-20 shrink-0">[{log.source}]</span>
               <span className="text-xs text-gray-300 truncate">{log.message}</span>
-            </div>
+            </motion.div>
           ))}
         </div>
       </div>
