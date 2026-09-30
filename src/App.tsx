@@ -1,280 +1,371 @@
-import { useState, useEffect } from 'react';
-import { providers } from './data/providers';
-import { teams, allAgents, type Team, type Agent, type TeamType } from './data/agents';
-
-type TabType = 'overview' | 'teams' | 'providers' | 'mcp-config' | 'logs';
-
-interface LogEntry {
-  id: string;
-  timestamp: string;
-  agent: string;
-  team: string;
-  action: string;
-  status: 'success' | 'info' | 'warning' | 'error';
-}
-
-function generateLogs(): LogEntry[] {
-  const actions = [
-    'Completed research task',
-    'Submitted code review',
-    'Architecture decision made',
-    'Algorithm optimized',
-    'Component rendered',
-    'API endpoint deployed',
-    'Connected to provider',
-    'Task delegated from lead',
-    'Result synthesized',
-    'Heartbeat confirmed',
-  ];
-  const logs: LogEntry[] = [];
-  for (let i = 0; i < 25; i++) {
-    const agent = allAgents[Math.floor(Math.random() * allAgents.length)];
-    const mins = Math.floor(Math.random() * 60);
-    logs.push({
-      id: `log-${i}`,
-      timestamp: `${mins}m ago`,
-      agent: agent.name,
-      team: agent.team,
-      action: actions[Math.floor(Math.random() * actions.length)],
-      status: (['success', 'info', 'warning', 'error'] as const)[Math.floor(Math.random() * 4)],
-    });
-  }
-  return logs.sort((a, b) => parseInt(a.timestamp) - parseInt(b.timestamp));
-}
+import { useEffect, useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+  Activity, Server, Cpu, Network, Shield, Layers,
+  ChevronRight, Zap, Clock,
+  GitBranch, Box, Terminal, BarChart3, Settings, Radio
+} from 'lucide-react';
+import { useAppStore } from './core/store';
+import { initialProviders, generateAgents, generateTasks, teamConfigs } from './core/data';
+import { architectureLayers } from './core/schemas';
+import type { TeamType } from './core/schemas';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<TabType>('overview');
-  const [selectedTeam, setSelectedTeam] = useState<TeamType | 'all'>('all');
-  const [logs] = useState<LogEntry[]>(generateLogs());
-  const [tick, setTick] = useState(0);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const {
+    activeView, setActiveView, sidebarOpen, toggleSidebar,
+    selectedTeam, setSelectedTeam, agents, tasks, providers, logs, metrics
+  } = useAppStore();
+
+  const [initialized, setInitialized] = useState(false);
 
   useEffect(() => {
-    const interval = setInterval(() => setTick(t => t + 1), 3000);
-    return () => clearInterval(interval);
-  }, []);
+    if (!initialized) {
+      const store = useAppStore.getState();
+      const generatedAgents = generateAgents();
+      const generatedTasks = generateTasks();
 
-  const totalAgents = allAgents.length;
-  const activeAgents = allAgents.filter(a => a.status === 'working' || a.status === 'active').length;
-  const connectedProviders = providers.filter(p => p.status === 'connected').length;
-  const totalTasks = allAgents.reduce((sum, a) => sum + a.tasksCompleted, 0);
+      useAppStore.setState({
+        agents: generatedAgents,
+        tasks: generatedTasks,
+        providers: initialProviders,
+        teams: teamConfigs.map(tc => ({
+          ...tc,
+          agentCount: 10,
+          agents: generatedAgents.filter(a => a.team === tc.id),
+          metrics: {
+            totalTasks: 10,
+            completedTasks: generatedTasks.filter(t => t.team === tc.id && t.status === 'completed').length,
+            failedTasks: Math.floor(Math.random() * 3),
+            avgCompletionTime: Math.floor(Math.random() * 300) + 60,
+            throughput: Math.floor(Math.random() * 20) + 5,
+          },
+        })),
+        metrics: {
+          totalTokensProcessed: generatedAgents.reduce((s, a) => s + a.tokensUsed, 0),
+          totalTasksCompleted: generatedTasks.filter(t => t.status === 'completed').length,
+          totalTasksFailed: generatedTasks.filter(t => t.status === 'failed').length,
+          avgLatency: Math.floor(initialProviders.reduce((s, p) => s + p.latency, 0) / initialProviders.length),
+          systemUptime: 99.7,
+          messagesPerSecond: Math.floor(Math.random() * 50) + 20,
+          activeConnections: initialProviders.filter(p => p.status === 'connected').length,
+          queueDepth: generatedTasks.filter(t => t.status === 'queued').length,
+        },
+      });
+
+      // Generate initial logs
+      const logMessages = [
+        { level: 'info' as const, source: 'orchestrator', message: 'MCP Server initialized with 60 agents across 6 teams' },
+        { level: 'info' as const, source: 'gateway', message: 'Connected to 16 free LLM API providers' },
+        { level: 'info' as const, source: 'queue', message: 'Task queue initialized with 60 pending tasks' },
+        { level: 'info' as const, source: 'health', message: 'All agent health checks passed' },
+        { level: 'info' as const, source: 'protocol', message: 'JSON-RPC 2.0 transport layer active (stdio + SSE)' },
+        { level: 'warn' as const, source: 'gateway', message: 'xAI provider latency elevated (567ms)' },
+        { level: 'info' as const, source: 'scheduler', message: 'Task distribution: 10 tasks per team allocated' },
+        { level: 'info' as const, source: 'synthesizer', message: 'Result synthesis pipeline ready' },
+      ];
+
+      logMessages.forEach((msg, i) => {
+        setTimeout(() => {
+          useAppStore.getState().addLog({
+            level: msg.level,
+            source: msg.source,
+            team: 'system',
+            message: msg.message,
+          });
+        }, i * 300);
+      });
+
+      setInitialized(true);
+    }
+  }, [initialized]);
+
+  const navItems = [
+    { id: 'architecture' as const, icon: Layers, label: 'Architecture' },
+    { id: 'dashboard' as const, icon: BarChart3, label: 'Dashboard' },
+    { id: 'teams' as const, icon: Network, label: 'Agent Teams' },
+    { id: 'providers' as const, icon: Server, label: 'API Providers' },
+    { id: 'tasks' as const, icon: GitBranch, label: 'Task Queue' },
+    { id: 'mcp-config' as const, icon: Settings, label: 'MCP Config' },
+    { id: 'logs' as const, icon: Terminal, label: 'System Logs' },
+  ];
 
   return (
-    <div className="min-h-screen bg-gray-950 text-white flex flex-col">
-      {/* Header */}
-      <header className="bg-gray-900/80 backdrop-blur-xl border-b border-gray-800 sticky top-0 z-50">
-        <div className="flex items-center justify-between px-4 py-3">
+    <div className="min-h-screen bg-[#0a0a0f] text-white flex flex-col font-sans">
+      {/* Top Bar */}
+      <header className="bg-[#0d0d14]/90 backdrop-blur-xl border-b border-white/5 sticky top-0 z-50">
+        <div className="flex items-center justify-between px-4 h-14">
           <div className="flex items-center gap-3">
-            <button onClick={() => setSidebarOpen(!sidebarOpen)} className="lg:hidden p-2 hover:bg-gray-800 rounded-lg">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-              </svg>
+            <button onClick={toggleSidebar} className="p-2 hover:bg-white/5 rounded-lg transition-colors lg:hidden">
+              <Network className="w-5 h-5" />
             </button>
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500 to-cyan-500 flex items-center justify-center text-sm font-bold">
-                M
+            <div className="flex items-center gap-2.5">
+              <div className="relative">
+                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500 via-purple-500 to-cyan-500 flex items-center justify-center">
+                  <Box className="w-4 h-4 text-white" />
+                </div>
+                <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-green-400 rounded-full border-2 border-[#0d0d14]"></div>
               </div>
               <div>
-                <h1 className="text-lg font-bold bg-gradient-to-r from-violet-400 to-cyan-400 bg-clip-text text-transparent">
-                  MCP Server Command Center
-                </h1>
-                <p className="text-xs text-gray-500">60-Agent Multi-Team AI Orchestration System</p>
+                <h1 className="text-sm font-bold tracking-tight">MCP Swarm Server</h1>
+                <p className="text-[10px] text-gray-500 -mt-0.5">60-Agent Orchestration • v1.0.0</p>
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-4">
-            <div className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-green-500/10 border border-green-500/30 rounded-full">
-              <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></div>
-              <span className="text-xs text-green-400 font-medium">Server Online</span>
+
+          <div className="flex items-center gap-3">
+            <div className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-green-500/10 border border-green-500/20 rounded-full">
+              <Radio className="w-3 h-3 text-green-400 animate-pulse" />
+              <span className="text-[11px] text-green-400 font-medium">All Systems Operational</span>
             </div>
-            <div className="hidden sm:block text-xs text-gray-500">
-              Uptime: {(tick % 100) + 1}h {tick % 60}m
+            <div className="hidden sm:flex items-center gap-4 text-[11px] text-gray-500">
+              <span className="flex items-center gap-1"><Cpu className="w-3 h-3" />{metrics.messagesPerSecond} msg/s</span>
+              <span className="flex items-center gap-1"><Activity className="w-3 h-3" />{metrics.avgLatency}ms avg</span>
+              <span className="flex items-center gap-1"><Shield className="w-3 h-3" />{metrics.systemUptime}%</span>
             </div>
           </div>
         </div>
       </header>
 
       <div className="flex flex-1 overflow-hidden">
-        {/* Sidebar Navigation */}
-        <aside className={`${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 fixed lg:static inset-y-0 left-0 z-40 w-56 bg-gray-900 border-r border-gray-800 transition-transform duration-200 pt-16 lg:pt-0`}>
-          <nav className="p-3 space-y-1">
-            {([
-              { id: 'overview', icon: '📊', label: 'Overview' },
-              { id: 'teams', icon: '👥', label: 'Agent Teams' },
-              { id: 'providers', icon: '🔌', label: 'API Providers' },
-              { id: 'mcp-config', icon: '⚙️', label: 'MCP Config' },
-              { id: 'logs', icon: '📋', label: 'Activity Logs' },
-            ] as { id: TabType; icon: string; label: string }[]).map(item => (
-              <button
-                key={item.id}
-                onClick={() => { setActiveTab(item.id); setSidebarOpen(false); }}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all ${
-                  activeTab === item.id
-                    ? 'bg-violet-500/20 text-violet-300 border border-violet-500/30'
-                    : 'text-gray-400 hover:bg-gray-800 hover:text-white'
-                }`}
-              >
-                <span>{item.icon}</span>
-                <span>{item.label}</span>
-              </button>
-            ))}
-          </nav>
+        {/* Sidebar */}
+        <AnimatePresence>
+          {sidebarOpen && (
+            <motion.aside
+              initial={{ x: -240, opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              exit={{ x: -240, opacity: 0 }}
+              transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+              className="w-56 bg-[#0d0d14] border-r border-white/5 flex flex-col shrink-0 fixed lg:static inset-y-0 left-0 z-40 pt-14 lg:pt-0"
+            >
+              <nav className="p-2 space-y-0.5 flex-1">
+                {navItems.map(item => (
+                  <button
+                    key={item.id}
+                    onClick={() => { setActiveView(item.id); if (window.innerWidth < 1024) toggleSidebar(); }}
+                    className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] transition-all ${
+                      activeView === item.id
+                        ? 'bg-violet-500/15 text-violet-300 border border-violet-500/20'
+                        : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'
+                    }`}
+                  >
+                    <item.icon className="w-4 h-4" />
+                    <span>{item.label}</span>
+                    {activeView === item.id && <ChevronRight className="w-3 h-3 ml-auto" />}
+                  </button>
+                ))}
+              </nav>
 
-          {/* Quick Stats in Sidebar */}
-          <div className="p-3 mt-4 border-t border-gray-800">
-            <div className="text-xs text-gray-500 mb-2 font-medium">QUICK STATS</div>
-            <div className="space-y-2">
-              <div className="flex justify-between text-xs">
-                <span className="text-gray-400">Agents Online</span>
-                <span className="text-green-400">{activeAgents}/{totalAgents}</span>
+              {/* Sidebar Footer Stats */}
+              <div className="p-3 border-t border-white/5 space-y-2">
+                <div className="text-[10px] text-gray-600 uppercase tracking-wider font-medium">System</div>
+                <div className="space-y-1.5">
+                  <div className="flex justify-between text-[11px]">
+                    <span className="text-gray-500">Agents</span>
+                    <span className="text-green-400">{agents.filter(a => a.status === 'working').length}/60</span>
+                  </div>
+                  <div className="flex justify-between text-[11px]">
+                    <span className="text-gray-500">Providers</span>
+                    <span className="text-cyan-400">{providers.filter(p => p.status === 'connected').length}/16</span>
+                  </div>
+                  <div className="flex justify-between text-[11px]">
+                    <span className="text-gray-500">Queue</span>
+                    <span className="text-amber-400">{metrics.queueDepth}</span>
+                  </div>
+                  <div className="flex justify-between text-[11px]">
+                    <span className="text-gray-500">Tokens</span>
+                    <span className="text-violet-400">{(metrics.totalTokensProcessed / 1000000).toFixed(1)}M</span>
+                  </div>
+                </div>
               </div>
-              <div className="flex justify-between text-xs">
-                <span className="text-gray-400">Providers</span>
-                <span className="text-cyan-400">{connectedProviders}/{providers.length}</span>
-              </div>
-              <div className="flex justify-between text-xs">
-                <span className="text-gray-400">Tasks Done</span>
-                <span className="text-violet-400">{totalTasks.toLocaleString()}</span>
-              </div>
-            </div>
-          </div>
-        </aside>
+            </motion.aside>
+          )}
+        </AnimatePresence>
 
         {/* Main Content */}
-        <main className="flex-1 overflow-y-auto p-4 lg:p-6">
-          {activeTab === 'overview' && <OverviewTab teams={teams} activeAgents={activeAgents} totalAgents={totalAgents} connectedProviders={connectedProviders} totalTasks={totalTasks} />}
-          {activeTab === 'teams' && <TeamsTab teams={teams} selectedTeam={selectedTeam} setSelectedTeam={setSelectedTeam} />}
-          {activeTab === 'providers' && <ProvidersTab />}
-          {activeTab === 'mcp-config' && <MCPConfigTab />}
-          {activeTab === 'logs' && <LogsTab logs={logs} />}
+        <main className="flex-1 overflow-y-auto">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={activeView}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.2 }}
+              className="p-4 lg:p-6 max-w-7xl mx-auto"
+            >
+              {activeView === 'architecture' && <ArchitectureView />}
+              {activeView === 'dashboard' && <DashboardView />}
+              {activeView === 'teams' && <TeamsView selectedTeam={selectedTeam} setSelectedTeam={setSelectedTeam} />}
+              {activeView === 'providers' && <ProvidersView />}
+              {activeView === 'tasks' && <TasksView />}
+              {activeView === 'mcp-config' && <MCPConfigView />}
+              {activeView === 'logs' && <LogsView />}
+            </motion.div>
+          </AnimatePresence>
         </main>
       </div>
     </div>
   );
 }
 
-// ============= OVERVIEW TAB =============
-function OverviewTab({ teams, activeAgents, totalAgents, connectedProviders, totalTasks }: {
-  teams: Team[]; activeAgents: number; totalAgents: number; connectedProviders: number; totalTasks: number;
-}) {
+// ============================================================
+// ARCHITECTURE VIEW
+// ============================================================
+function ArchitectureView() {
   return (
     <div className="space-y-6">
-      {/* Stats Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard icon="🤖" label="Total Agents" value={totalAgents.toString()} sub="6 teams × 10 agents" color="violet" />
-        <StatCard icon="⚡" label="Active Now" value={activeAgents.toString()} sub={`${Math.round(activeAgents/totalAgents*100)}% utilization`} color="green" />
-        <StatCard icon="🔌" label="API Providers" value={`${connectedProviders}/${providers.length}`} sub="Connected & ready" color="cyan" />
-        <StatCard icon="✅" label="Tasks Completed" value={totalTasks.toLocaleString()} sub="All time" color="amber" />
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-bold flex items-center gap-2">
+            <Layers className="w-5 h-5 text-violet-400" />
+            System Architecture
+          </h2>
+          <p className="text-sm text-gray-500 mt-1">8-layer enterprise architecture with 28 core components</p>
+        </div>
+        <div className="flex gap-2">
+          <span className="text-[10px] px-2 py-1 bg-green-500/10 text-green-400 rounded-full border border-green-500/20">All Active</span>
+        </div>
       </div>
 
-      {/* Architecture Diagram */}
-      <div className="bg-gray-900 rounded-xl border border-gray-800 p-6">
-        <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
-          <span>🏛️</span> MCP Server Architecture
-        </h2>
-        <div className="relative">
-          {/* Main Lead */}
-          <div className="flex justify-center mb-6">
-            <div className="px-6 py-3 bg-gradient-to-r from-violet-600 to-cyan-600 rounded-xl shadow-lg shadow-violet-500/20">
-              <div className="text-center">
-                <div className="text-sm font-bold">🧠 Main Lead AI (MCP User)</div>
-                <div className="text-xs text-violet-200">Orchestrates all 60 agents</div>
-              </div>
+      {/* Architecture Flow Diagram */}
+      <div className="bg-[#0d0d14] border border-white/5 rounded-xl p-6">
+        <h3 className="text-sm font-medium text-gray-400 mb-4">Data Flow: Lead AI → Teams → Agents → Providers</h3>
+        <div className="flex flex-col items-center gap-2">
+          {/* Lead AI */}
+          <div className="px-6 py-3 bg-gradient-to-r from-violet-600/20 to-cyan-600/20 border border-violet-500/30 rounded-xl">
+            <div className="text-center">
+              <div className="text-sm font-bold text-violet-300">🧠 Main Lead AI (MCP Client)</div>
+              <div className="text-[10px] text-gray-500">Orchestrates all operations via JSON-RPC 2.0</div>
             </div>
           </div>
 
-          {/* Connection Lines */}
-          <div className="flex justify-center mb-4">
-            <div className="w-px h-8 bg-gradient-to-b from-violet-500 to-gray-700"></div>
+          <div className="w-px h-6 bg-gradient-to-b from-violet-500/50 to-transparent"></div>
+
+          {/* Transport */}
+          <div className="px-4 py-2 bg-cyan-500/10 border border-cyan-500/20 rounded-lg text-xs text-cyan-400">
+            Transport Layer: stdio | SSE | WebSocket
           </div>
 
-          {/* MCP Protocol Layer */}
-          <div className="flex justify-center mb-4">
-            <div className="px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg">
-              <span className="text-xs text-gray-400">MCP Protocol Layer — JSON-RPC 2.0 | stdio/SSE Transport</span>
-            </div>
+          <div className="w-px h-4 bg-cyan-500/30"></div>
+
+          {/* Protocol */}
+          <div className="px-4 py-2 bg-violet-500/10 border border-violet-500/20 rounded-lg text-xs text-violet-400">
+            Protocol Layer: JSON-RPC 2.0 + Zod Validation
           </div>
 
-          <div className="flex justify-center mb-4">
-            <div className="w-px h-6 bg-gray-700"></div>
+          <div className="w-px h-4 bg-violet-500/30"></div>
+
+          {/* Orchestration */}
+          <div className="px-4 py-2 bg-amber-500/10 border border-amber-500/20 rounded-lg text-xs text-amber-400">
+            Orchestration: Task Router + Scheduler + Synthesizer
           </div>
 
-          {/* Teams Grid */}
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-            {teams.map(team => (
-              <div key={team.id} className={`bg-gradient-to-br ${team.color} p-0.5 rounded-xl`}>
-                <div className="bg-gray-900 rounded-[10px] p-3 h-full">
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="text-lg">{team.icon}</span>
-                    <span className="text-sm font-semibold">{team.name}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="flex -space-x-1">
-                      {team.agents.slice(0, 5).map((agent, i) => (
-                        <div key={i} className={`w-4 h-4 rounded-full border border-gray-900 ${
-                          agent.status === 'working' ? 'bg-green-400' :
-                          agent.status === 'active' ? 'bg-blue-400' :
-                          agent.status === 'idle' ? 'bg-gray-500' : 'bg-red-400'
-                        }`}></div>
-                      ))}
-                      <div className="w-4 h-4 rounded-full border border-gray-900 bg-gray-700 flex items-center justify-center">
-                        <span className="text-[8px]">+5</span>
-                      </div>
-                    </div>
-                    <span className="text-xs text-gray-400">
-                      {team.agents.filter(a => a.status === 'working').length}/10 working
-                    </span>
-                  </div>
+          <div className="w-px h-4 bg-amber-500/30"></div>
+
+          {/* Teams */}
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2 w-full">
+            {teamConfigs.map(tc => (
+              <div key={tc.id} className={`px-3 py-2 bg-gradient-to-br ${tc.gradient} rounded-lg bg-opacity-10`}
+                style={{ background: `linear-gradient(135deg, ${tc.color}15, ${tc.color}05)`, border: `1px solid ${tc.color}30` }}>
+                <div className="text-center">
+                  <div className="text-lg">{tc.icon}</div>
+                  <div className="text-[10px] font-medium mt-0.5" style={{ color: tc.color }}>{tc.name.split(' ')[0]}</div>
+                  <div className="text-[9px] text-gray-500">10 agents</div>
                 </div>
               </div>
             ))}
           </div>
+
+          <div className="w-px h-4 bg-green-500/30"></div>
+
+          {/* Provider Gateway */}
+          <div className="px-4 py-2 bg-blue-500/10 border border-blue-500/20 rounded-lg text-xs text-blue-400">
+            Provider Gateway: Connection Pool + Rate Limiter + Circuit Breaker
+          </div>
+
+          <div className="w-px h-4 bg-blue-500/30"></div>
+
+          {/* Providers */}
+          <div className="flex flex-wrap justify-center gap-1.5">
+            {initialProviders.slice(0, 8).map(p => (
+              <span key={p.id} className="text-[9px] px-2 py-0.5 bg-white/5 border border-white/10 rounded text-gray-400">
+                {p.name}
+              </span>
+            ))}
+            <span className="text-[9px] px-2 py-0.5 bg-white/5 border border-white/10 rounded text-gray-500">
+              +8 more
+            </span>
+          </div>
         </div>
       </div>
 
-      {/* Team Performance */}
-      <div className="bg-gray-900 rounded-xl border border-gray-800 p-6">
-        <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
-          <span>📈</span> Team Performance
-        </h2>
-        <div className="space-y-3">
-          {teams.map(team => {
-            const completed = team.agents.reduce((s, a) => s + a.tasksCompleted, 0);
-            const working = team.agents.filter(a => a.status === 'working').length;
-            const pct = Math.round((working / 10) * 100);
-            return (
-              <div key={team.id} className="flex items-center gap-4">
-                <span className="text-lg w-8">{team.icon}</span>
-                <div className="flex-1 min-w-0">
-                  <div className="flex justify-between mb-1">
-                    <span className="text-sm font-medium">{team.name}</span>
-                    <span className="text-xs text-gray-400">{completed} tasks • {working}/10 active</span>
+      {/* Layer Breakdown */}
+      <div className="space-y-3">
+        {architectureLayers.map((layer, idx) => (
+          <motion.div
+            key={layer.id}
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: idx * 0.05 }}
+            className="bg-[#0d0d14] border border-white/5 rounded-xl overflow-hidden"
+          >
+            <div className="flex items-center gap-3 px-4 py-3 border-b border-white/5"
+              style={{ borderLeftColor: layer.color, borderLeftWidth: '3px' }}>
+              <div className="w-6 h-6 rounded-md flex items-center justify-center text-[10px] font-bold"
+                style={{ backgroundColor: `${layer.color}20`, color: layer.color }}>
+                {idx + 1}
+              </div>
+              <div className="flex-1">
+                <h3 className="text-sm font-semibold">{layer.name}</h3>
+                <p className="text-[11px] text-gray-500">{layer.description}</p>
+              </div>
+              <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ backgroundColor: `${layer.color}15`, color: layer.color }}>
+                {layer.components.length} components
+              </span>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-px bg-white/5">
+              {layer.components.map(comp => (
+                <div key={comp.id} className="bg-[#0d0d14] p-3 hover:bg-white/[0.02] transition-colors">
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: comp.status === 'active' ? '#10b981' : '#f59e0b' }}></div>
+                    <span className="text-xs font-medium">{comp.name}</span>
                   </div>
-                  <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
-                    <div
-                      className={`h-full rounded-full bg-gradient-to-r ${team.color} transition-all duration-1000`}
-                      style={{ width: `${pct}%` }}
-                    ></div>
+                  <div className="text-[10px] text-gray-500 space-y-0.5">
+                    <div><span className="text-gray-600">Tech:</span> {comp.technology}</div>
+                    <div><span className="text-gray-600">Framework:</span> <span className="text-violet-400/70">{comp.framework}</span></div>
+                    <div className="text-gray-600 pt-0.5">{comp.purpose}</div>
                   </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
+              ))}
+            </div>
+          </motion.div>
+        ))}
       </div>
 
-      {/* Recent Activity */}
-      <div className="bg-gray-900 rounded-xl border border-gray-800 p-6">
-        <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
-          <span>🔔</span> Recent Activity
-        </h2>
-        <div className="space-y-2 max-h-64 overflow-y-auto">
-          {allAgents.filter(a => a.status === 'working').slice(0, 8).map(agent => (
-            <div key={agent.id} className="flex items-center gap-3 p-2 rounded-lg bg-gray-800/50">
-              <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></div>
-              <span className="text-xs text-gray-400 w-16">{agent.team}</span>
-              <span className="text-sm truncate flex-1">{agent.currentTask}</span>
-              <span className="text-xs text-gray-500">{agent.lastPing}</span>
+      {/* Technology Stack */}
+      <div className="bg-[#0d0d14] border border-white/5 rounded-xl p-6">
+        <h3 className="text-sm font-bold mb-4 flex items-center gap-2">
+          <Zap className="w-4 h-4 text-amber-400" />
+          Technology Stack
+        </h3>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {[
+            { category: 'Core Runtime', items: ['Node.js 20+', 'TypeScript 5.x', 'ESM Modules'] },
+            { category: 'MCP Protocol', items: ['@modelcontextprotocol/sdk', 'JSON-RPC 2.0', 'zod (validation)'] },
+            { category: 'State & Queue', items: ['zustand', 'bullmq', 'ioredis'] },
+            { category: 'HTTP/Transport', items: ['@hono/node-server', 'ws', 'socket.io'] },
+            { category: 'AI/LLM', items: ['OpenAI SDK', 'tiktoken', 'langchain'] },
+            { category: 'Resilience', items: ['opossum (circuit)', 'rate-limiter-flexible', 'undici'] },
+            { category: 'Observability', items: ['pino', '@opentelemetry/sdk', 'prom-client'] },
+            { category: 'Frontend', items: ['React 19', 'framer-motion', 'lucide-react'] },
+          ].map(group => (
+            <div key={group.category} className="space-y-1.5">
+              <div className="text-[10px] text-gray-500 uppercase tracking-wider font-medium">{group.category}</div>
+              {group.items.map(item => (
+                <div key={item} className="text-xs text-gray-300 flex items-center gap-1.5">
+                  <div className="w-1 h-1 rounded-full bg-violet-500/50"></div>
+                  {item}
+                </div>
+              ))}
             </div>
           ))}
         </div>
@@ -283,85 +374,207 @@ function OverviewTab({ teams, activeAgents, totalAgents, connectedProviders, tot
   );
 }
 
-function StatCard({ icon, label, value, sub, color }: { icon: string; label: string; value: string; sub: string; color: string }) {
-  const colorMap: Record<string, string> = {
-    violet: 'from-violet-500/20 to-violet-600/5 border-violet-500/30',
-    green: 'from-green-500/20 to-green-600/5 border-green-500/30',
-    cyan: 'from-cyan-500/20 to-cyan-600/5 border-cyan-500/30',
-    amber: 'from-amber-500/20 to-amber-600/5 border-amber-500/30',
-  };
+// ============================================================
+// DASHBOARD VIEW
+// ============================================================
+function DashboardView() {
+  const { agents, tasks, providers, metrics, teams } = useAppStore();
+
+  const workingAgents = agents.filter(a => a.status === 'working').length;
+  const idleAgents = agents.filter(a => a.status === 'idle').length;
+  const errorAgents = agents.filter(a => a.status === 'error').length;
+  const completedTasks = tasks.filter(t => t.status === 'completed').length;
+  const inProgressTasks = tasks.filter(t => t.status === 'in_progress').length;
+
   return (
-    <div className={`bg-gradient-to-br ${colorMap[color]} border rounded-xl p-4`}>
-      <div className="flex items-center gap-2 mb-2">
-        <span className="text-lg">{icon}</span>
-        <span className="text-xs text-gray-400">{label}</span>
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-xl font-bold flex items-center gap-2">
+          <BarChart3 className="w-5 h-5 text-cyan-400" />
+          System Dashboard
+        </h2>
+        <p className="text-sm text-gray-500 mt-1">Real-time metrics across all 60 agents and 16 providers</p>
       </div>
-      <div className="text-2xl font-bold">{value}</div>
-      <div className="text-xs text-gray-500 mt-1">{sub}</div>
+
+      {/* Metric Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <MetricCard icon={<Cpu className="w-4 h-4" />} label="Working Agents" value={`${workingAgents}/60`} change="+3" color="green" />
+        <MetricCard icon={<GitBranch className="w-4 h-4" />} label="Tasks In Progress" value={`${inProgressTasks}`} change={`${completedTasks} done`} color="violet" />
+        <MetricCard icon={<Server className="w-4 h-4" />} label="Active Providers" value={`${providers.filter(p => p.status === 'connected').length}/16`} change="99.7% uptime" color="cyan" />
+        <MetricCard icon={<Zap className="w-4 h-4" />} label="Throughput" value={`${metrics.messagesPerSecond}/s`} change={`${metrics.avgLatency}ms avg`} color="amber" />
+      </div>
+
+      {/* Agent Status Distribution */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="bg-[#0d0d14] border border-white/5 rounded-xl p-5">
+          <h3 className="text-sm font-semibold mb-4">Agent Status Distribution</h3>
+          <div className="space-y-3">
+            {[
+              { label: 'Working', count: workingAgents, color: '#10b981', bg: 'bg-green-500' },
+              { label: 'Idle', count: idleAgents, color: '#6b7280', bg: 'bg-gray-500' },
+              { label: 'Awaiting Review', count: agents.filter(a => a.status === 'awaiting_review').length, color: '#f59e0b', bg: 'bg-amber-500' },
+              { label: 'Error', count: errorAgents, color: '#ef4444', bg: 'bg-red-500' },
+            ].map(item => (
+              <div key={item.label} className="flex items-center gap-3">
+                <div className={`w-2.5 h-2.5 rounded-full ${item.bg}`}></div>
+                <span className="text-xs text-gray-400 w-28">{item.label}</span>
+                <div className="flex-1 h-2 bg-white/5 rounded-full overflow-hidden">
+                  <motion.div
+                    initial={{ width: 0 }}
+                    animate={{ width: `${(item.count / 60) * 100}%` }}
+                    transition={{ duration: 0.8, ease: 'easeOut' }}
+                    className="h-full rounded-full"
+                    style={{ backgroundColor: item.color }}
+                  />
+                </div>
+                <span className="text-xs font-mono text-gray-300 w-8 text-right">{item.count}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="bg-[#0d0d14] border border-white/5 rounded-xl p-5">
+          <h3 className="text-sm font-semibold mb-4">Team Performance</h3>
+          <div className="space-y-3">
+            {teams.map(team => (
+              <div key={team.id} className="flex items-center gap-3">
+                <span className="text-base">{team.icon}</span>
+                <span className="text-xs text-gray-400 w-20 truncate">{team.name.split(' ')[0]}</span>
+                <div className="flex-1 h-2 bg-white/5 rounded-full overflow-hidden">
+                  <motion.div
+                    initial={{ width: 0 }}
+                    animate={{ width: `${(team.metrics.completedTasks / 10) * 100}%` }}
+                    transition={{ duration: 0.8 }}
+                    className="h-full rounded-full"
+                    style={{ backgroundColor: team.color }}
+                  />
+                </div>
+                <span className="text-[10px] text-gray-500 w-16 text-right">{team.metrics.throughput} t/hr</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Provider Latency */}
+      <div className="bg-[#0d0d14] border border-white/5 rounded-xl p-5">
+        <h3 className="text-sm font-semibold mb-4">Provider Latency (ms)</h3>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {providers.sort((a, b) => a.latency - b.latency).map(p => (
+            <div key={p.id} className="bg-white/[0.02] border border-white/5 rounded-lg p-3">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-[11px] font-medium truncate">{p.name}</span>
+                <div className={`w-1.5 h-1.5 rounded-full ${p.status === 'connected' ? 'bg-green-400' : p.status === 'degraded' ? 'bg-amber-400' : 'bg-red-400'}`}></div>
+              </div>
+              <div className={`text-lg font-mono font-bold ${p.latency < 200 ? 'text-green-400' : p.latency < 400 ? 'text-amber-400' : 'text-red-400'}`}>
+                {p.latency}<span className="text-[10px] text-gray-500">ms</span>
+              </div>
+              <div className="text-[9px] text-gray-600">{p.uptime}% uptime</div>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
 
-// ============= TEAMS TAB =============
-function TeamsTab({ teams, selectedTeam, setSelectedTeam }: {
-  teams: Team[]; selectedTeam: TeamType | 'all'; setSelectedTeam: (t: TeamType | 'all') => void;
-}) {
-  const filteredTeams = selectedTeam === 'all' ? teams : teams.filter(t => t.id === selectedTeam);
+function MetricCard({ icon, label, value, change, color }: { icon: React.ReactNode; label: string; value: string; change: string; color: string }) {
+  const colorMap: Record<string, string> = {
+    green: 'from-green-500/10 border-green-500/20 text-green-400',
+    violet: 'from-violet-500/10 border-violet-500/20 text-violet-400',
+    cyan: 'from-cyan-500/10 border-cyan-500/20 text-cyan-400',
+    amber: 'from-amber-500/10 border-amber-500/20 text-amber-400',
+  };
+  return (
+    <div className={`bg-gradient-to-br ${colorMap[color]} border rounded-xl p-4`}>
+      <div className="flex items-center gap-2 mb-2 text-gray-400">{icon}<span className="text-[11px]">{label}</span></div>
+      <div className="text-2xl font-bold text-white">{value}</div>
+      <div className="text-[10px] text-gray-500 mt-1">{change}</div>
+    </div>
+  );
+}
+
+// ============================================================
+// TEAMS VIEW
+// ============================================================
+function TeamsView({ selectedTeam, setSelectedTeam }: { selectedTeam: TeamType | 'all'; setSelectedTeam: (t: TeamType | 'all') => void }) {
+  const { teams, agents } = useAppStore();
+  const filtered = selectedTeam === 'all' ? teams : teams.filter(t => t.id === selectedTeam);
 
   return (
     <div className="space-y-6">
+      <div>
+        <h2 className="text-xl font-bold flex items-center gap-2">
+          <Network className="w-5 h-5 text-green-400" />
+          Agent Teams
+        </h2>
+        <p className="text-sm text-gray-500 mt-1">6 specialized teams × 10 agents each = 60 total agents</p>
+      </div>
+
       {/* Team Filter */}
       <div className="flex flex-wrap gap-2">
-        <button
-          onClick={() => setSelectedTeam('all')}
-          className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-            selectedTeam === 'all' ? 'bg-violet-500 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'
-          }`}
-        >
-          All Teams (60)
+        <button onClick={() => setSelectedTeam('all')}
+          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${selectedTeam === 'all' ? 'bg-violet-500/20 text-violet-300 border border-violet-500/30' : 'bg-white/5 text-gray-400 hover:text-white'}`}>
+          All (60)
         </button>
-        {teams.map(team => (
-          <button
-            key={team.id}
-            onClick={() => setSelectedTeam(team.id)}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-              selectedTeam === team.id ? 'bg-violet-500 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'
-            }`}
-          >
-            {team.icon} {team.name.split(' ')[0]} (10)
+        {teams.map(t => (
+          <button key={t.id} onClick={() => setSelectedTeam(t.id)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${selectedTeam === t.id ? 'bg-violet-500/20 text-violet-300 border border-violet-500/30' : 'bg-white/5 text-gray-400 hover:text-white'}`}>
+            {t.icon} {t.name.split(' ')[0]}
           </button>
         ))}
       </div>
 
       {/* Team Cards */}
-      {filteredTeams.map(team => (
-        <div key={team.id} className="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
-          <div className={`bg-gradient-to-r ${team.color} p-4`}>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <span className="text-2xl">{team.icon}</span>
-                <div>
-                  <h3 className="text-lg font-bold">{team.name}</h3>
-                  <p className="text-sm text-white/70">{team.description}</p>
-                </div>
+      {filtered.map(team => (
+        <div key={team.id} className="bg-[#0d0d14] border border-white/5 rounded-xl overflow-hidden">
+          <div className="px-4 py-3 border-b border-white/5 flex items-center justify-between"
+            style={{ borderLeftColor: team.color, borderLeftWidth: '3px' }}>
+            <div className="flex items-center gap-2">
+              <span className="text-lg">{team.icon}</span>
+              <div>
+                <h3 className="text-sm font-bold">{team.name}</h3>
+                <p className="text-[10px] text-gray-500">{team.description}</p>
               </div>
-              <div className="text-right">
-                <div className="text-sm font-medium">
-                  {team.agents.filter(a => a.status === 'working').length}/10 Working
-                </div>
-                <div className="text-xs text-white/60">
-                  {team.agents.reduce((s, a) => s + a.tasksCompleted, 0)} total tasks
-                </div>
-              </div>
+            </div>
+            <div className="flex items-center gap-3 text-[10px] text-gray-500">
+              <span>{team.agents.filter(a => a.status === 'working').length}/10 working</span>
+              <span>{team.metrics.completedTasks}/10 completed</span>
             </div>
           </div>
 
-          <div className="p-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {team.agents.map(agent => (
-                <AgentCard key={agent.id} agent={agent} />
-              ))}
-            </div>
+          <div className="p-3 grid grid-cols-1 md:grid-cols-2 gap-2">
+            {team.agents.map(agent => (
+              <div key={agent.id} className="bg-white/[0.02] border border-white/5 rounded-lg p-2.5 hover:border-white/10 transition-all">
+                <div className="flex items-center justify-between mb-1.5">
+                  <div className="flex items-center gap-2">
+                    <div className={`w-2 h-2 rounded-full ${
+                      agent.status === 'working' ? 'bg-green-400 animate-pulse' :
+                      agent.status === 'idle' ? 'bg-gray-500' :
+                      agent.status === 'awaiting_review' ? 'bg-amber-400' :
+                      agent.status === 'error' ? 'bg-red-400' : 'bg-blue-400'
+                    }`}></div>
+                    <span className="text-xs font-mono font-medium">{agent.name}</span>
+                  </div>
+                  <span className="text-[9px] px-1.5 py-0.5 rounded bg-white/5 text-gray-500">{agent.status}</span>
+                </div>
+                <div className="text-[10px] text-gray-500 truncate mb-1">
+                  📦 {agent.model}
+                </div>
+                <div className="flex items-center justify-between text-[9px] text-gray-600">
+                  <span>🔌 {agent.assignedProvider}</span>
+                  <span>⚡ {agent.avgResponseTime}ms</span>
+                  <span>✅ {agent.tasksCompleted}</span>
+                </div>
+                {/* Health Bar */}
+                <div className="mt-1.5 h-1 bg-white/5 rounded-full overflow-hidden">
+                  <div className="h-full rounded-full transition-all" style={{
+                    width: `${agent.health.score}%`,
+                    backgroundColor: agent.health.score > 80 ? '#10b981' : agent.health.score > 60 ? '#f59e0b' : '#ef4444'
+                  }}></div>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       ))}
@@ -369,126 +582,136 @@ function TeamsTab({ teams, selectedTeam, setSelectedTeam }: {
   );
 }
 
-function AgentCard({ agent }: { agent: Agent }) {
-  const statusColors: Record<string, string> = {
-    active: 'bg-blue-400',
-    idle: 'bg-gray-500',
-    working: 'bg-green-400',
-    error: 'bg-red-400',
-  };
-  const statusLabels: Record<string, string> = {
-    active: 'Active',
-    idle: 'Idle',
-    working: 'Working',
-    error: 'Error',
-  };
+// ============================================================
+// PROVIDERS VIEW
+// ============================================================
+function ProvidersView() {
+  const { providers } = useAppStore();
 
   return (
-    <div className="bg-gray-800/50 border border-gray-700/50 rounded-lg p-3 hover:border-gray-600 transition-all">
-      <div className="flex items-start justify-between mb-2">
-        <div className="flex items-center gap-2">
-          <div className={`w-2.5 h-2.5 rounded-full ${statusColors[agent.status]} ${agent.status === 'working' ? 'animate-pulse' : ''}`}></div>
-          <span className="text-sm font-medium">{agent.name}</span>
-        </div>
-        <span className={`text-[10px] px-2 py-0.5 rounded-full ${
-          agent.status === 'working' ? 'bg-green-500/20 text-green-400' :
-          agent.status === 'active' ? 'bg-blue-500/20 text-blue-400' :
-          agent.status === 'idle' ? 'bg-gray-500/20 text-gray-400' :
-          'bg-red-500/20 text-red-400'
-        }`}>
-          {statusLabels[agent.status]}
-        </span>
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-xl font-bold flex items-center gap-2">
+          <Server className="w-5 h-5 text-blue-400" />
+          API Provider Gateway
+        </h2>
+        <p className="text-sm text-gray-500 mt-1">16 free LLM API providers with connection pooling & circuit breakers</p>
       </div>
-      <div className="text-xs text-gray-400 mb-2 truncate">
-        📋 {agent.currentTask}
-      </div>
-      <div className="flex items-center justify-between text-[10px] text-gray-500">
-        <span>🔌 {agent.provider}</span>
-        <span>📦 {agent.model}</span>
-      </div>
-      <div className="flex items-center justify-between text-[10px] text-gray-500 mt-1">
-        <span>✅ {agent.tasksCompleted} tasks</span>
-        <span>⏱️ {agent.uptime}</span>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        {providers.map(p => (
+          <div key={p.id} className="bg-[#0d0d14] border border-white/5 rounded-xl p-4 hover:border-white/10 transition-all">
+            <div className="flex items-start justify-between mb-3">
+              <div>
+                <h3 className="text-sm font-bold">{p.name}</h3>
+                <p className="text-[10px] text-gray-600 font-mono truncate max-w-[200px]">{p.baseUrl}</p>
+              </div>
+              <div className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] ${
+                p.status === 'connected' ? 'bg-green-500/10 text-green-400' :
+                p.status === 'degraded' ? 'bg-amber-500/10 text-amber-400' :
+                'bg-red-500/10 text-red-400'
+              }`}>
+                <div className={`w-1.5 h-1.5 rounded-full ${p.status === 'connected' ? 'bg-green-400' : p.status === 'degraded' ? 'bg-amber-400' : 'bg-red-400'}`}></div>
+                {p.status}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-4 gap-2 mb-3">
+              <div className="text-center">
+                <div className="text-sm font-bold text-violet-400">{p.freeModelCount}</div>
+                <div className="text-[9px] text-gray-600">Models</div>
+              </div>
+              <div className="text-center">
+                <div className={`text-sm font-bold ${p.latency < 200 ? 'text-green-400' : p.latency < 400 ? 'text-amber-400' : 'text-red-400'}`}>{p.latency}ms</div>
+                <div className="text-[9px] text-gray-600">Latency</div>
+              </div>
+              <div className="text-center">
+                <div className="text-sm font-bold text-cyan-400">{p.uptime}%</div>
+                <div className="text-[9px] text-gray-600">Uptime</div>
+              </div>
+              <div className="text-center">
+                <div className="text-sm font-bold text-amber-400">{(p.maxContextTokens / 1000).toFixed(0)}K</div>
+                <div className="text-[9px] text-gray-600">Context</div>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-1 mb-2">
+              {p.modalities.slice(0, 5).map(m => (
+                <span key={m} className="text-[9px] px-1.5 py-0.5 bg-white/5 rounded text-gray-500">{m}</span>
+              ))}
+              {p.modalities.length > 5 && <span className="text-[9px] text-gray-600">+{p.modalities.length - 5}</span>}
+            </div>
+
+            <div className="flex items-center justify-between text-[9px] text-gray-600">
+              <span>💳 {p.creditCardRequired ? 'Card required' : 'No card needed'}</span>
+              <span>📊 {p.totalRequests.toLocaleString()} reqs | {p.failedRequests} failed</span>
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );
 }
 
-// ============= PROVIDERS TAB =============
-function ProvidersTab() {
-  const [search, setSearch] = useState('');
-  const filtered = providers.filter(p =>
-    p.name.toLowerCase().includes(search.toLowerCase()) ||
-    p.modalities.some(m => m.toLowerCase().includes(search.toLowerCase()))
-  );
+// ============================================================
+// TASKS VIEW
+// ============================================================
+function TasksView() {
+  const { tasks } = useAppStore();
+  const [filter, setFilter] = useState<'all' | 'queued' | 'in_progress' | 'completed' | 'failed'>('all');
+
+  const filtered = filter === 'all' ? tasks : tasks.filter(t => t.status === filter);
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+      <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-bold">API Provider Connections</h2>
-          <p className="text-sm text-gray-400">Connected to {providers.filter(p => p.status === 'connected').length} of {providers.length} free LLM API providers</p>
+          <h2 className="text-xl font-bold flex items-center gap-2">
+            <GitBranch className="w-5 h-5 text-amber-400" />
+            Task Queue
+          </h2>
+          <p className="text-sm text-gray-500 mt-1">Priority-based task distribution with BullMQ</p>
         </div>
-        <input
-          type="text"
-          placeholder="Search providers..."
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          className="px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm focus:outline-none focus:border-violet-500 w-full sm:w-64"
-        />
+        <div className="flex gap-1.5">
+          {(['all', 'queued', 'in_progress', 'completed', 'failed'] as const).map(f => (
+            <button key={f} onClick={() => setFilter(f)}
+              className={`px-2.5 py-1 rounded text-[10px] font-medium capitalize transition-all ${filter === f ? 'bg-violet-500/20 text-violet-300' : 'bg-white/5 text-gray-500 hover:text-white'}`}>
+              {f.replace('_', ' ')}
+            </button>
+          ))}
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {filtered.map(provider => (
-          <div key={provider.id} className="bg-gray-900 border border-gray-800 rounded-xl p-4 hover:border-gray-700 transition-all">
-            <div className="flex items-start justify-between mb-3">
-              <div>
-                <h3 className="font-bold text-sm">{provider.name}</h3>
-                <p className="text-xs text-gray-500 font-mono mt-0.5 truncate max-w-[200px]">{provider.baseUrl}</p>
+      <div className="space-y-2">
+        {filtered.map(task => (
+          <div key={task.id} className="bg-[#0d0d14] border border-white/5 rounded-lg p-3 hover:border-white/10 transition-all">
+            <div className="flex items-center gap-3">
+              <div className={`w-2 h-2 rounded-full shrink-0 ${
+                task.status === 'completed' ? 'bg-green-400' :
+                task.status === 'in_progress' ? 'bg-blue-400 animate-pulse' :
+                task.status === 'queued' ? 'bg-gray-500' :
+                task.status === 'review' ? 'bg-amber-400' :
+                'bg-red-400'
+              }`}></div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-0.5">
+                  <span className="text-xs font-medium truncate">{task.title}</span>
+                  <span className={`text-[9px] px-1.5 py-0.5 rounded shrink-0 ${
+                    task.priority === 'critical' ? 'bg-red-500/10 text-red-400' :
+                    task.priority === 'high' ? 'bg-amber-500/10 text-amber-400' :
+                    task.priority === 'medium' ? 'bg-blue-500/10 text-blue-400' :
+                    'bg-gray-500/10 text-gray-400'
+                  }`}>{task.priority}</span>
+                </div>
+                <div className="flex items-center gap-3 text-[10px] text-gray-500">
+                  <span>Team: {task.team}</span>
+                  {task.assignedAgent && <span>Agent: {task.assignedAgent}</span>}
+                  <span className="capitalize">Status: {task.status.replace('_', ' ')}</span>
+                </div>
               </div>
-              <div className={`flex items-center gap-1.5 px-2 py-1 rounded-full text-xs ${
-                provider.status === 'connected' ? 'bg-green-500/20 text-green-400' :
-                provider.status === 'pending' ? 'bg-amber-500/20 text-amber-400' :
-                'bg-red-500/20 text-red-400'
-              }`}>
-                <div className={`w-1.5 h-1.5 rounded-full ${
-                  provider.status === 'connected' ? 'bg-green-400' :
-                  provider.status === 'pending' ? 'bg-amber-400' : 'bg-red-400'
-                }`}></div>
-                {provider.status}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-3 gap-2 mb-3">
-              <div className="bg-gray-800/50 rounded-lg p-2 text-center">
-                <div className="text-sm font-bold text-violet-400">{provider.freeModels}</div>
-                <div className="text-[10px] text-gray-500">Models</div>
-              </div>
-              <div className="bg-gray-800/50 rounded-lg p-2 text-center">
-                <div className="text-sm font-bold text-cyan-400">{provider.maxContext}</div>
-                <div className="text-[10px] text-gray-500">Context</div>
-              </div>
-              <div className="bg-gray-800/50 rounded-lg p-2 text-center">
-                <div className="text-sm font-bold text-amber-400">{provider.rateLimit.split(',')[0]}</div>
-                <div className="text-[10px] text-gray-500">Rate Limit</div>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap gap-1 mb-3">
-              {provider.modalities.slice(0, 5).map(m => (
-                <span key={m} className="text-[10px] px-1.5 py-0.5 bg-gray-800 rounded text-gray-400">{m}</span>
-              ))}
-              {provider.modalities.length > 5 && (
-                <span className="text-[10px] px-1.5 py-0.5 bg-gray-800 rounded text-gray-500">+{provider.modalities.length - 5}</span>
-              )}
-            </div>
-
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] text-gray-500">💳 {provider.creditCard}</span>
-              <div className="flex gap-1">
-                {provider.bestModels.slice(0, 2).map(m => (
-                  <span key={m} className="text-[10px] px-1.5 py-0.5 bg-violet-500/10 border border-violet-500/20 rounded text-violet-400 truncate max-w-[120px]">{m}</span>
-                ))}
+              <div className="text-[10px] text-gray-600 shrink-0">
+                <Clock className="w-3 h-3 inline mr-1" />
+                {task.status === 'completed' && task.completedAt ? new Date(task.completedAt).toLocaleTimeString() : '—'}
               </div>
             </div>
           </div>
@@ -498,255 +721,243 @@ function ProvidersTab() {
   );
 }
 
-// ============= MCP CONFIG TAB =============
-function MCPConfigTab() {
-  const mcpConfig = `{
-  "mcpServers": {
-    "ai-swarm-command": {
-      "command": "node",
-      "args": ["./mcp-server/index.js"],
-      "env": {
-        "TOTAL_AGENTS": "60",
-        "TEAMS": "research,code,architect,algorithm,frontend,backend",
-        "AGENTS_PER_TEAM": "10",
-        "TRANSPORT": "stdio",
-        "LOG_LEVEL": "info"
-      }
-    }
-  }
-}`;
+// ============================================================
+// MCP CONFIG VIEW
+// ============================================================
+function MCPConfigView() {
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-xl font-bold flex items-center gap-2">
+          <Settings className="w-5 h-5 text-violet-400" />
+          MCP Server Configuration
+        </h2>
+        <p className="text-sm text-gray-500 mt-1">Complete MCP server implementation with all tools and handlers</p>
+      </div>
 
-  const serverCode = `// MCP Server - AI Swarm Command Center
-const { Server } = require('@modelcontextprotocol/sdk/server');
-const { StdioServerTransport } = require('@modelcontextprotocol/sdk/server/stdio');
-const { z } = require('zod');
+      {/* Config Files */}
+      <div className="bg-[#0d0d14] border border-white/5 rounded-xl overflow-hidden">
+        <div className="flex items-center justify-between px-4 py-2 bg-white/[0.02] border-b border-white/5">
+          <div className="flex items-center gap-2">
+            <Terminal className="w-3.5 h-3.5 text-gray-500" />
+            <span className="text-xs font-mono text-gray-400">mcp-server/src/index.ts</span>
+          </div>
+          <span className="text-[10px] text-gray-600">TypeScript • 342 lines</span>
+        </div>
+        <pre className="p-4 text-[11px] text-gray-300 overflow-x-auto font-mono leading-relaxed max-h-[400px] overflow-y-auto">
+{`import { Server } from '@modelcontextprotocol/sdk/server/index.js';
+import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
+import { z } from 'zod';
+import { AgentPool } from './agents/pool.js';
+import { TaskQueue } from './queue/bullmq.js';
+import { ProviderGateway } from './gateway/index.js';
+import { ResultSynthesizer } from './orchestration/synthesizer.js';
+import { HealthMonitor } from './monitoring/health.js';
+import { MetricsCollector } from './monitoring/metrics.js';
+import pino from 'pino';
 
-const server = new Server({
-  name: 'ai-swarm-command',
-  version: '1.0.0',
-}, {
-  capabilities: {
-    tools: {},
-    resources: {},
-    prompts: {},
-  }
-});
+const logger = pino({ level: 'info' });
 
-// Team Configuration
-const TEAMS = {
-  research: { slots: 10, providers: ['nvidia-nim', 'google-gemini', 'openrouter', 'groq', 'deepseek'] },
-  code: { slots: 10, providers: ['huggingface', 'cerebras', 'mistral', 'sambanova', 'cloudflare'] },
-  architect: { slots: 10, providers: ['cohere', 'nvidia-nim', 'openrouter', 'llm7', 'kilo-code'] },
-  algorithm: { slots: 10, providers: ['cerebras', 'groq', 'deepseek', 'chutes', 'nvidia-nim'] },
-  frontend: { slots: 10, providers: ['google-gemini', 'mistral', 'cloudflare', 'github-models', 'llm7'] },
-  backend: { slots: 10, providers: ['sambanova', 'cohere', 'huggingface', 'kilo-code', 'cloudflare'] },
-};
+// Initialize core components
+const agentPool = new AgentPool({ totalAgents: 60, teams: 6 });
+const taskQueue = new TaskQueue({ redis: process.env.REDIS_URL });
+const gateway = new ProviderGateway({ providers: 16 });
+const synthesizer = new ResultSynthesizer();
+const healthMonitor = new HealthMonitor();
+const metrics = new MetricsCollector();
 
-// Register Tools
+// Create MCP Server
+const server = new Server(
+  { name: 'ai-swarm-command', version: '1.0.0' },
+  { capabilities: { tools: {}, resources: {}, prompts: {} } }
+);
+
+// Register 6 MCP Tools
 server.setRequestHandler('tools/list', async () => ({
   tools: [
     {
       name: 'delegate_task',
-      description: 'Delegate a task to a specific team or agent',
-      inputSchema: z.object({
-        team: z.enum(['research', 'code', 'architect', 'algorithm', 'frontend', 'backend']),
+      description: 'Delegate task to specific team/agent',
+      inputSchema: {
+        team: z.enum(['research','code','architect','algorithm','frontend','backend']),
         task: z.string(),
-        priority: z.enum(['low', 'medium', 'high', 'critical']).optional(),
+        priority: z.enum(['critical','high','medium','low']).optional(),
         agent_slot: z.number().min(1).max(10).optional(),
-      }),
+      },
     },
     {
       name: 'broadcast_to_team',
-      description: 'Send a message to all agents in a team',
-      inputSchema: z.object({
-        team: z.enum(['research', 'code', 'architect', 'algorithm', 'frontend', 'backend']),
-        message: z.string(),
-      }),
+      description: 'Send message to all agents in a team',
+      inputSchema: { team: z.string(), message: z.string() },
     },
     {
       name: 'get_team_status',
-      description: 'Get the current status of all agents in a team',
-      inputSchema: z.object({
-        team: z.enum(['research', 'code', 'architect', 'algorithm', 'frontend', 'backend']).optional(),
-      }),
+      description: 'Get real-time status of team agents',
+      inputSchema: { team: z.string().optional() },
     },
     {
       name: 'synthesize_results',
-      description: 'Collect and synthesize results from multiple agents',
-      inputSchema: z.object({
-        teams: z.array(z.enum(['research', 'code', 'architect', 'algorithm', 'frontend', 'backend'])),
-        synthesis_type: z.enum(['summary', 'detailed', 'code_review', 'architecture_review']),
-      }),
-    },
-    {
-      name: 'reassign_agent',
-      description: 'Reassign an agent to a different task or team',
-      inputSchema: z.object({
-        agent_id: z.string(),
-        new_team: z.enum(['research', 'code', 'architect', 'algorithm', 'frontend', 'backend']).optional(),
-        new_task: z.string().optional(),
-      }),
+      description: 'Aggregate results from multiple agents',
+      inputSchema: {
+        teams: z.array(z.string()),
+        type: z.enum(['summary','detailed','code_review']),
+      },
     },
     {
       name: 'research_query',
-      description: 'Mandatory research - dispatch to research team for verification',
-      inputSchema: z.object({
+      description: 'Mandatory research dispatch (always verified)',
+      inputSchema: {
         query: z.string(),
-        depth: z.enum(['shallow', 'moderate', 'deep', 'exhaustive']),
+        depth: z.enum(['shallow','moderate','deep','exhaustive']),
         cross_reference: z.boolean().optional(),
-      }),
+      },
+    },
+    {
+      name: 'reassign_agent',
+      description: 'Move agent to different team/task',
+      inputSchema: {
+        agent_id: z.string(),
+        new_team: z.string().optional(),
+        new_task: z.string().optional(),
+      },
     },
   ],
 }));
 
-// Tool Execution Handler
+// Tool execution with full pipeline
 server.setRequestHandler('tools/call', async (request) => {
   const { name, arguments: args } = request.params;
+  logger.info({ tool: name, args }, 'Tool invoked');
   
-  switch (name) {
-    case 'delegate_task':
-      return await handleDelegateTask(args);
-    case 'broadcast_to_team':
-      return await handleBroadcast(args);
-    case 'get_team_status':
-      return await handleGetStatus(args);
-    case 'synthesize_results':
-      return await handleSynthesize(args);
-    case 'research_query':
-      return await handleResearchQuery(args);
-    default:
-      throw new Error(\`Unknown tool: \${name}\`);
+  try {
+    switch (name) {
+      case 'delegate_task': {
+        const agent = agentPool.getAvailableAgent(args.team, args.agent_slot);
+        const task = await taskQueue.enqueue({ ...args, agentId: agent.id });
+        const result = await agent.execute(task);
+        metrics.recordTask(agent.team, result);
+        return { content: [{ type: 'text', text: JSON.stringify(result) }] };
+      }
+      case 'research_query': {
+        // Mandatory: always goes through research team first
+        const researchers = agentPool.getTeam('research');
+        const results = await Promise.all(
+          researchers.slice(0, args.depth === 'exhaustive' ? 10 : 5)
+            .map(r => r.execute({ query: args.query }))
+        );
+        const synthesized = await synthesizer.merge(results);
+        return { content: [{ type: 'text', text: synthesized }] };
+      }
+      // ... other handlers
+    }
+  } catch (error) {
+    logger.error({ error, tool: name }, 'Tool execution failed');
+    throw error;
   }
 });
 
-async function handleDelegateTask(args) {
-  const team = TEAMS[args.team];
-  const slot = args.agent_slot || Math.ceil(Math.random() * 10);
-  const provider = team.providers[slot % team.providers.length];
-  
-  // Route to appropriate LLM API
-  const response = await callProvider(provider, {
-    task: args.task,
-    priority: args.priority || 'medium',
-    context: \`You are \${args.team} agent #\${slot}\`,
-  });
-  
-  return { content: [{ type: 'text', text: JSON.stringify(response) }] };
-}
-
-// Start server
+// Start transport
 const transport = new StdioServerTransport();
-server.connect(transport);`;
-
-  return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-xl font-bold mb-2">MCP Server Configuration</h2>
-        <p className="text-sm text-gray-400">Configure the MCP server that orchestrates all 60 AI agents across 6 specialized teams</p>
-      </div>
-
-      {/* Connection Info */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
-          <div className="text-xs text-gray-500 mb-1">Transport</div>
-          <div className="text-sm font-mono text-cyan-400">stdio / SSE</div>
-        </div>
-        <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
-          <div className="text-xs text-gray-500 mb-1">Protocol</div>
-          <div className="text-sm font-mono text-violet-400">JSON-RPC 2.0</div>
-        </div>
-        <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
-          <div className="text-xs text-gray-500 mb-1">Agent Slots</div>
-          <div className="text-sm font-mono text-green-400">60 (6 teams × 10)</div>
-        </div>
-      </div>
-
-      {/* MCP Config JSON */}
-      <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
-        <div className="flex items-center justify-between px-4 py-2 bg-gray-800/50 border-b border-gray-800">
-          <span className="text-xs font-medium text-gray-400">mcp.config.json</span>
-          <button className="text-xs px-2 py-1 bg-violet-500/20 text-violet-400 rounded hover:bg-violet-500/30">
-            Copy
-          </button>
-        </div>
-        <pre className="p-4 text-xs text-gray-300 overflow-x-auto font-mono leading-relaxed">
-          {mcpConfig}
+await server.connect(transport);
+logger.info('MCP Swarm Server started');`}
         </pre>
       </div>
 
-      {/* Server Code */}
-      <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
-        <div className="flex items-center justify-between px-4 py-2 bg-gray-800/50 border-b border-gray-800">
-          <span className="text-xs font-medium text-gray-400">mcp-server/index.js</span>
-          <button className="text-xs px-2 py-1 bg-violet-500/20 text-violet-400 rounded hover:bg-violet-500/30">
-            Copy
-          </button>
-        </div>
-        <pre className="p-4 text-xs text-gray-300 overflow-x-auto font-mono leading-relaxed max-h-[500px] overflow-y-auto">
-          {serverCode}
-        </pre>
-      </div>
-
-      {/* Available Tools */}
-      <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
-        <h3 className="text-lg font-bold mb-4">🛠️ Available MCP Tools</h3>
+      {/* MCP Tools Summary */}
+      <div className="bg-[#0d0d14] border border-white/5 rounded-xl p-5">
+        <h3 className="text-sm font-bold mb-4">Registered MCP Tools (6)</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {[
-            { name: 'delegate_task', desc: 'Delegate a task to a specific team or agent slot', params: 'team, task, priority, agent_slot' },
-            { name: 'broadcast_to_team', desc: 'Send a message to all agents in a team', params: 'team, message' },
-            { name: 'get_team_status', desc: 'Get current status of all agents in a team', params: 'team (optional)' },
-            { name: 'synthesize_results', desc: 'Collect and synthesize results from multiple agents', params: 'teams[], synthesis_type' },
-            { name: 'reassign_agent', desc: 'Reassign an agent to a different task or team', params: 'agent_id, new_team, new_task' },
-            { name: 'research_query', desc: 'Mandatory research dispatch to research team', params: 'query, depth, cross_reference' },
+            { name: 'delegate_task', cat: 'delegation', desc: 'Route task to specific team/agent with priority' },
+            { name: 'broadcast_to_team', cat: 'delegation', desc: 'Send message to all agents in a team' },
+            { name: 'get_team_status', cat: 'monitoring', desc: 'Real-time status of all team agents' },
+            { name: 'synthesize_results', cat: 'synthesis', desc: 'Aggregate & merge multi-agent results' },
+            { name: 'research_query', cat: 'research', desc: 'Mandatory research with cross-referencing' },
+            { name: 'reassign_agent', cat: 'lifecycle', desc: 'Move agent between teams/tasks' },
           ].map(tool => (
-            <div key={tool.name} className="bg-gray-800/50 border border-gray-700/50 rounded-lg p-3">
-              <div className="text-sm font-mono text-cyan-400 mb-1">{tool.name}</div>
-              <div className="text-xs text-gray-400 mb-2">{tool.desc}</div>
-              <div className="text-[10px] text-gray-500">Params: {tool.params}</div>
+            <div key={tool.name} className="bg-white/[0.02] border border-white/5 rounded-lg p-3">
+              <div className="flex items-center gap-2 mb-1">
+                <code className="text-xs text-cyan-400 font-mono">{tool.name}</code>
+                <span className="text-[9px] px-1.5 py-0.5 bg-violet-500/10 text-violet-400 rounded">{tool.cat}</span>
+              </div>
+              <p className="text-[10px] text-gray-500">{tool.desc}</p>
             </div>
           ))}
         </div>
+      </div>
+
+      {/* Package.json dependencies */}
+      <div className="bg-[#0d0d14] border border-white/5 rounded-xl overflow-hidden">
+        <div className="px-4 py-2 bg-white/[0.02] border-b border-white/5">
+          <span className="text-xs font-mono text-gray-400">package.json — dependencies</span>
+        </div>
+        <pre className="p-4 text-[11px] text-gray-300 font-mono leading-relaxed">
+{`{
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.0",
+    "zod": "^3.24.0",
+    "bullmq": "^5.30.0",
+    "ioredis": "^5.4.0",
+    "@hono/node-server": "^1.13.0",
+    "ws": "^8.18.0",
+    "socket.io": "^4.8.0",
+    "openai": "^4.77.0",
+    "tiktoken": "^1.0.18",
+    "langchain": "^0.3.0",
+    "opossum": "^8.4.0",
+    "rate-limiter-flexible": "^5.0.0",
+    "undici": "^7.2.0",
+    "pino": "^9.6.0",
+    "@opentelemetry/sdk-node": "^0.57.0",
+    "prom-client": "^15.1.0",
+    "drizzle-orm": "^0.38.0",
+    "xstate": "^5.19.0",
+    "workerpool": "^9.2.0",
+    "lru-cache": "^11.0.0"
+  }
+}`}
+        </pre>
       </div>
     </div>
   );
 }
 
-// ============= LOGS TAB =============
-function LogsTab({ logs }: { logs: LogEntry[] }) {
-  const statusColors: Record<string, string> = {
-    success: 'text-green-400 bg-green-500/10',
-    info: 'text-blue-400 bg-blue-500/10',
-    warning: 'text-amber-400 bg-amber-500/10',
-    error: 'text-red-400 bg-red-500/10',
+// ============================================================
+// LOGS VIEW
+// ============================================================
+function LogsView() {
+  const { logs } = useAppStore();
+
+  const levelColors: Record<string, string> = {
+    debug: 'text-gray-500',
+    info: 'text-blue-400',
+    warn: 'text-amber-400',
+    error: 'text-red-400',
   };
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-xl font-bold">Activity Logs</h2>
-          <p className="text-sm text-gray-400">Real-time communication log between agents and the lead AI</p>
-        </div>
-        <div className="flex gap-2">
-          {['all', 'success', 'info', 'warning', 'error'].map(filter => (
-            <button key={filter} className="text-xs px-3 py-1.5 bg-gray-800 rounded-lg text-gray-400 hover:text-white capitalize">
-              {filter}
-            </button>
-          ))}
-        </div>
+      <div>
+        <h2 className="text-xl font-bold flex items-center gap-2">
+          <Terminal className="w-5 h-5 text-green-400" />
+          System Logs
+        </h2>
+        <p className="text-sm text-gray-500 mt-1">Structured logs from pino with OpenTelemetry tracing</p>
       </div>
 
-      <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
-        <div className="divide-y divide-gray-800/50">
+      <div className="bg-[#0d0d14] border border-white/5 rounded-xl overflow-hidden">
+        <div className="divide-y divide-white/[0.03]">
           {logs.map(log => (
-            <div key={log.id} className="flex items-center gap-3 px-4 py-3 hover:bg-gray-800/30">
-              <span className="text-xs text-gray-500 w-14 shrink-0">{log.timestamp}</span>
-              <span className={`text-[10px] px-2 py-0.5 rounded-full ${statusColors[log.status]}`}>
-                {log.status}
+            <div key={log.id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-white/[0.02]">
+              <span className="text-[10px] text-gray-600 font-mono w-16 shrink-0">
+                {new Date(log.timestamp).toLocaleTimeString()}
               </span>
-              <span className="text-xs text-violet-400 w-28 truncate shrink-0">{log.agent}</span>
-              <span className="text-xs text-gray-500 w-20 shrink-0">[{log.team}]</span>
-              <span className="text-sm text-gray-300 truncate">{log.action}</span>
+              <span className={`text-[10px] font-mono uppercase w-12 shrink-0 ${levelColors[log.level] || 'text-gray-500'}`}>
+                {log.level}
+              </span>
+              <span className="text-[10px] text-violet-400/70 font-mono w-20 shrink-0">[{log.source}]</span>
+              <span className="text-xs text-gray-300 truncate">{log.message}</span>
             </div>
           ))}
         </div>
