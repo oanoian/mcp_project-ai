@@ -5,12 +5,15 @@ import {
   ChevronRight, Zap, Clock, GitBranch, Box, Terminal,
   BarChart3, Settings, Radio, Search, Command, X,
   CheckCircle2, AlertCircle, Info, TrendingUp, Users,
-  Database, Wifi, Play, Pause, RefreshCw
+  Database, Wifi, Play, Pause, RefreshCw, Lock, Key,
+  Eye, EyeOff, ShieldAlert, ShieldCheck, Fingerprint
 } from 'lucide-react';
 import { useAppStore } from './core/store';
 import { useToastStore } from './components/Toast';
 import { initialProviders, generateAgents, generateTasks, teamConfigs } from './core/data';
 import { architectureLayers } from './core/schemas';
+import { securityLayers, type SecurityLayer } from './core/security-schemas';
+import { certificates, securityRules, securityHeaders, generateSecurityEvents, antiFingerprintConfig, securityMetrics } from './core/security-data';
 import { useRealtimeSimulation } from './hooks/useRealtimeSimulation';
 import type { TeamType } from './core/schemas';
 
@@ -103,6 +106,7 @@ export default function App() {
 
   const navItems = [
     { id: 'architecture' as const, icon: Layers, label: 'Architecture' },
+    { id: 'security' as const, icon: Shield, label: 'Security' },
     { id: 'dashboard' as const, icon: BarChart3, label: 'Dashboard' },
     { id: 'teams' as const, icon: Network, label: 'Agent Teams' },
     { id: 'providers' as const, icon: Server, label: 'API Providers' },
@@ -236,6 +240,7 @@ export default function App() {
               className="p-4 lg:p-6 max-w-7xl mx-auto"
             >
               {activeView === 'architecture' && <ArchitectureView />}
+              {activeView === 'security' && <SecurityView />}
               {activeView === 'dashboard' && <DashboardView />}
               {activeView === 'teams' && <TeamsView selectedTeam={selectedTeam} setSelectedTeam={setSelectedTeam} />}
               {activeView === 'providers' && <ProvidersView />}
@@ -508,6 +513,48 @@ function ArchitectureView() {
               +8 more
             </span>
           </motion.div>
+        </div>
+      </div>
+
+      {/* Security Layers */}
+      <div className="glass rounded-xl p-6">
+        <h3 className="text-sm font-bold mb-4 flex items-center gap-2">
+          <Shield className="w-4 h-4 text-red-400" />
+          8-Layer Security Architecture (Zero-Trust)
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {securityLayers.map((layer, idx) => (
+            <motion.div
+              key={layer.id}
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: idx * 0.05 }}
+              className="p-3 rounded-lg border hover:scale-[1.02] transition-all cursor-pointer"
+              style={{
+                background: `linear-gradient(135deg, ${layer.color}10, ${layer.color}05)`,
+                borderColor: `${layer.color}30`,
+              }}
+            >
+              <div className="flex items-center gap-2 mb-2">
+                <div className="w-6 h-6 rounded-md flex items-center justify-center text-[10px] font-bold"
+                  style={{ backgroundColor: `${layer.color}20`, color: layer.color }}>
+                  {idx + 1}
+                </div>
+                <div className="flex-1">
+                  <div className="text-xs font-bold" style={{ color: layer.color }}>{layer.name}</div>
+                  <div className="text-[9px] text-gray-500">{layer.description}</div>
+                </div>
+                <div className="w-2 h-2 rounded-full bg-green-400"></div>
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {layer.components.map(comp => (
+                  <span key={comp.id} className="text-[8px] px-1.5 py-0.5 rounded bg-white/5 text-gray-500">
+                    {comp.name.split(' ')[0]}
+                  </span>
+                ))}
+              </div>
+            </motion.div>
+          ))}
         </div>
       </div>
 
@@ -980,7 +1027,7 @@ await server.connect(transport);`}
       </div>
 
       <div className="glass rounded-xl p-5">
-        <h3 className="text-sm font-bold mb-4">Registered MCP Tools (6)</h3>
+        <h3 className="text-sm font-bold mb-4">Registered MCP Tools (10)</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {[
             { name: 'delegate_task', cat: 'delegation', desc: 'Route task to specific team/agent with priority' },
@@ -989,11 +1036,17 @@ await server.connect(transport);`}
             { name: 'synthesize_results', cat: 'synthesis', desc: 'Aggregate & merge multi-agent results' },
             { name: 'research_query', cat: 'research', desc: 'Mandatory research with cross-referencing' },
             { name: 'reassign_agent', cat: 'lifecycle', desc: 'Move agent between teams/tasks' },
+            { name: 'verify_certificate', cat: 'security', desc: 'Validate team TLS certificate fingerprint' },
+            { name: 'check_security_rules', cat: 'security', desc: 'Check if request violates security rules' },
+            { name: 'get_security_events', cat: 'security', desc: 'Retrieve recent security events and alerts' },
+            { name: 'rotate_api_key', cat: 'security', desc: 'Rotate API keys for a specific team' },
           ].map(tool => (
             <div key={tool.name} className="bg-white/[0.02] border border-white/5 rounded-lg p-3 hover:border-white/10 transition-all">
               <div className="flex items-center gap-2 mb-1">
                 <code className="text-xs text-cyan-400 font-mono">{tool.name}</code>
-                <span className="text-[9px] px-1.5 py-0.5 bg-violet-500/10 text-violet-400 rounded">{tool.cat}</span>
+                <span className={`text-[9px] px-1.5 py-0.5 rounded ${
+                  tool.cat === 'security' ? 'bg-red-500/10 text-red-400' : 'bg-violet-500/10 text-violet-400'
+                }`}>{tool.cat}</span>
               </div>
               <p className="text-[10px] text-gray-500">{tool.desc}</p>
             </div>
@@ -1045,6 +1098,422 @@ function LogsView() {
             </motion.div>
           ))}
         </div>
+      </div>
+    </div>
+  );
+}
+
+// Security View
+function SecurityView() {
+  const [securityEvents] = useState(generateSecurityEvents());
+  const [activeTab, setActiveTab] = useState<'overview' | 'certificates' | 'rules' | 'headers' | 'fingerprint' | 'events'>('overview');
+
+  return (
+    <div className="space-y-6 animate-slide-up">
+      <div>
+        <h2 className="text-2xl font-bold flex items-center gap-2">
+          <Shield className="w-6 h-6 text-red-400" />
+          <span className="text-gradient">Security Command Center</span>
+        </h2>
+        <p className="text-sm text-gray-500 mt-1">Advanced protection with TLS/SSL, anti-fingerprinting, and zero-trust architecture</p>
+      </div>
+
+      {/* Security Score Card */}
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+        <motion.div
+          whileHover={{ scale: 1.02 }}
+          className="lg:col-span-1 bg-gradient-to-br from-green-500/10 to-emerald-500/5 border border-green-500/20 rounded-xl p-5"
+        >
+          <div className="flex items-center gap-2 mb-3">
+            <ShieldCheck className="w-5 h-5 text-green-400" />
+            <span className="text-xs text-gray-400">Security Score</span>
+          </div>
+          <div className="text-4xl font-bold text-green-400 mb-2">{securityMetrics.securityScore}%</div>
+          <div className="text-[10px] text-gray-500">Excellent protection level</div>
+          <div className="mt-3 h-2 bg-white/5 rounded-full overflow-hidden">
+            <motion.div
+              initial={{ width: 0 }}
+              animate={{ width: `${securityMetrics.securityScore}%` }}
+              transition={{ duration: 1, ease: 'easeOut' }}
+              className="h-full bg-gradient-to-r from-green-500 to-emerald-400 rounded-full"
+            />
+          </div>
+        </motion.div>
+
+        <MetricCard icon={<ShieldAlert className="w-4 h-4" />} label="Threats Blocked" value={securityMetrics.totalBlocked.toLocaleString()} change="Last 24h" color="red" />
+        <MetricCard icon={<Lock className="w-4 h-4" />} label="Encryption" value={securityMetrics.encryptionStrength.split(' + ')[0]} change={securityMetrics.tlsVersion} color="violet" />
+        <MetricCard icon={<Key className="w-4 h-4" />} label="Certificates" value={`${securityMetrics.certificatesValid}/${certificates.length}`} change="All valid" color="cyan" />
+      </div>
+
+      {/* Tabs */}
+      <div className="flex gap-2 border-b border-white/5 pb-2">
+        {[
+          { id: 'overview', label: 'Overview', icon: Shield },
+          { id: 'certificates', label: 'Certificates', icon: Key },
+          { id: 'rules', label: 'Security Rules', icon: ShieldAlert },
+          { id: 'headers', label: 'Security Headers', icon: Lock },
+          { id: 'fingerprint', label: 'Anti-Fingerprint', icon: Fingerprint },
+          { id: 'events', label: 'Security Events', icon: AlertCircle },
+        ].map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id as any)}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-medium transition-all ${
+              activeTab === tab.id
+                ? 'bg-red-500/20 text-red-300 border border-red-500/30'
+                : 'bg-white/5 text-gray-400 hover:text-white'
+            }`}
+          >
+            <tab.icon className="w-3.5 h-3.5" />
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Tab Content */}
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={activeTab}
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -10 }}
+          transition={{ duration: 0.2 }}
+        >
+          {activeTab === 'overview' && <SecurityOverview />}
+          {activeTab === 'certificates' && <CertificatesView />}
+          {activeTab === 'rules' && <SecurityRulesView />}
+          {activeTab === 'headers' && <SecurityHeadersView />}
+          {activeTab === 'fingerprint' && <AntiFingerprintView />}
+          {activeTab === 'events' && <SecurityEventsView events={securityEvents} />}
+        </motion.div>
+      </AnimatePresence>
+    </div>
+  );
+}
+
+function SecurityOverview() {
+  return (
+    <div className="space-y-6">
+      {/* Security Architecture Layers */}
+      <div className="glass rounded-xl p-6">
+        <h3 className="text-sm font-bold mb-4 flex items-center gap-2">
+          <Shield className="w-4 h-4 text-red-400" />
+          8-Layer Security Architecture
+        </h3>
+        <div className="space-y-3">
+          {securityLayers.map((layer, idx) => (
+            <motion.div
+              key={layer.id}
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: idx * 0.05 }}
+              className="flex items-center gap-3 p-3 bg-white/[0.02] border border-white/5 rounded-lg hover:border-white/10 transition-all"
+            >
+              <div
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold shrink-0"
+                style={{ backgroundColor: `${layer.color}20`, color: layer.color }}
+              >
+                {idx + 1}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-medium">{layer.name}</div>
+                <div className="text-[10px] text-gray-500 truncate">{layer.description}</div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ backgroundColor: `${layer.color}15`, color: layer.color }}>
+                  {layer.components.length} components
+                </span>
+                <div className="w-2 h-2 rounded-full bg-green-400"></div>
+              </div>
+            </motion.div>
+          ))}
+        </div>
+      </div>
+
+      {/* Security Metrics Grid */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="glass rounded-xl p-4">
+          <div className="text-[10px] text-gray-500 mb-1">Total Blocked</div>
+          <div className="text-xl font-bold text-red-400">{securityMetrics.totalBlocked.toLocaleString()}</div>
+          <div className="text-[9px] text-gray-600 mt-1">Malicious requests</div>
+        </div>
+        <div className="glass rounded-xl p-4">
+          <div className="text-[10px] text-gray-500 mb-1">Active Alerts</div>
+          <div className="text-xl font-bold text-amber-400">{securityMetrics.totalAlerts}</div>
+          <div className="text-[9px] text-gray-600 mt-1">Under monitoring</div>
+        </div>
+        <div className="glass rounded-xl p-4">
+          <div className="text-[10px] text-gray-500 mb-1">Active Threats</div>
+          <div className="text-xl font-bold text-orange-400">{securityMetrics.activeThreats}</div>
+          <div className="text-[9px] text-gray-600 mt-1">Being mitigated</div>
+        </div>
+        <div className="glass rounded-xl p-4">
+          <div className="text-[10px] text-gray-500 mb-1">Rules Enabled</div>
+          <div className="text-xl font-bold text-violet-400">{securityMetrics.rulesEnabled}</div>
+          <div className="text-[9px] text-gray-600 mt-1">Security policies</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CertificatesView() {
+  return (
+    <div className="space-y-4">
+      <div className="glass rounded-xl p-5">
+        <h3 className="text-sm font-bold mb-4 flex items-center gap-2">
+          <Key className="w-4 h-4 text-amber-400" />
+          TLS/SSL Certificates (6 Teams + Root CA)
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {certificates.map(cert => (
+            <motion.div
+              key={cert.id}
+              whileHover={{ scale: 1.02 }}
+              className="bg-white/[0.02] border border-white/5 rounded-lg p-4 hover:border-white/10 transition-all"
+            >
+              <div className="flex items-start justify-between mb-3">
+                <div>
+                  <div className="text-sm font-bold">{cert.commonName}</div>
+                  <div className="text-[10px] text-gray-500 font-mono">{cert.type.toUpperCase()}</div>
+                </div>
+                <div className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] ${
+                  cert.status === 'valid' ? 'bg-green-500/10 text-green-400' :
+                  cert.status === 'expiring' ? 'bg-amber-500/10 text-amber-400' :
+                  'bg-red-500/10 text-red-400'
+                }`}>
+                  <div className={`w-1.5 h-1.5 rounded-full ${
+                    cert.status === 'valid' ? 'bg-green-400' :
+                    cert.status === 'expiring' ? 'bg-amber-400' : 'bg-red-400'
+                  }`}></div>
+                  {cert.status}
+                </div>
+              </div>
+
+              <div className="space-y-2 text-[10px]">
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Team:</span>
+                  <span className="text-gray-300 capitalize">{cert.team}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Issuer:</span>
+                  <span className="text-gray-300 truncate ml-2">{cert.issuer}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Key Size:</span>
+                  <span className="text-violet-400">{cert.keySize}-bit RSA</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Algorithm:</span>
+                  <span className="text-cyan-400">{cert.signatureAlgorithm}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Valid Until:</span>
+                  <span className="text-gray-300">{new Date(cert.validTo).toLocaleDateString()}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Days Left:</span>
+                  <span className={cert.daysUntilExpiry > 30 ? 'text-green-400' : 'text-amber-400'}>
+                    {cert.daysUntilExpiry} days
+                  </span>
+                </div>
+              </div>
+
+              <div className="mt-3 pt-3 border-t border-white/5">
+                <div className="text-[9px] text-gray-600 mb-1">Fingerprint:</div>
+                <div className="text-[9px] font-mono text-gray-400 break-all">{cert.fingerprint}</div>
+              </div>
+
+              <div className="mt-2 flex items-center gap-2">
+                {cert.autoRenew && (
+                  <span className="text-[9px] px-1.5 py-0.5 bg-green-500/10 text-green-400 rounded">Auto-Renew</span>
+                )}
+                {cert.pinned && (
+                  <span className="text-[9px] px-1.5 py-0.5 bg-violet-500/10 text-violet-400 rounded">Pinned</span>
+                )}
+              </div>
+            </motion.div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SecurityRulesView() {
+  return (
+    <div className="space-y-3">
+      {securityRules.map(rule => (
+        <motion.div
+          key={rule.id}
+          whileHover={{ scale: 1.01 }}
+          className="glass rounded-lg p-4 hover:border-white/10 transition-all"
+        >
+          <div className="flex items-start justify-between mb-2">
+            <div className="flex-1">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-sm font-bold">{rule.name}</span>
+                <span className={`text-[9px] px-1.5 py-0.5 rounded ${
+                  rule.severity === 'critical' ? 'bg-red-500/10 text-red-400' :
+                  rule.severity === 'high' ? 'bg-orange-500/10 text-orange-400' :
+                  rule.severity === 'medium' ? 'bg-amber-500/10 text-amber-400' :
+                  'bg-blue-500/10 text-blue-400'
+                }`}>
+                  {rule.severity}
+                </span>
+                <span className="text-[9px] px-1.5 py-0.5 bg-white/5 text-gray-400 rounded capitalize">
+                  {rule.category}
+                </span>
+              </div>
+              <p className="text-[10px] text-gray-500">{rule.description}</p>
+            </div>
+            <div className={`w-2 h-2 rounded-full ${rule.enabled ? 'bg-green-400' : 'bg-gray-500'}`}></div>
+          </div>
+
+          <div className="flex items-center gap-4 text-[10px] text-gray-500 mt-2">
+            <span>Action: <span className="text-cyan-400">{rule.action.replace('_', ' ')}</span></span>
+            <span>Triggered: <span className="text-amber-400">{rule.triggerCount}x</span></span>
+            {rule.lastTriggered && (
+              <span>Last: <span className="text-gray-400">{new Date(rule.lastTriggered).toLocaleDateString()}</span></span>
+            )}
+          </div>
+
+          <div className="mt-2 flex flex-wrap gap-1">
+            {rule.conditions.slice(0, 4).map((cond, i) => (
+              <span key={i} className="text-[9px] px-1.5 py-0.5 bg-white/5 rounded text-gray-500">
+                {cond}
+              </span>
+            ))}
+          </div>
+        </motion.div>
+      ))}
+    </div>
+  );
+}
+
+function SecurityHeadersView() {
+  return (
+    <div className="glass rounded-xl p-5">
+      <h3 className="text-sm font-bold mb-4 flex items-center gap-2">
+        <Lock className="w-4 h-4 text-violet-400" />
+        Advanced Security Headers ({securityHeaders.length} headers enforced)
+      </h3>
+      <div className="space-y-2">
+        {securityHeaders.map((header, idx) => (
+          <motion.div
+            key={header.name}
+            initial={{ opacity: 0, x: -10 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: idx * 0.02 }}
+            className="bg-white/[0.02] border border-white/5 rounded-lg p-3 hover:border-white/10 transition-all"
+          >
+            <div className="flex items-start justify-between mb-1">
+              <div className="flex items-center gap-2">
+                <code className="text-xs text-cyan-400 font-mono">{header.name}</code>
+                {header.critical && (
+                  <span className="text-[9px] px-1.5 py-0.5 bg-red-500/10 text-red-400 rounded">Critical</span>
+                )}
+              </div>
+              <div className={`w-2 h-2 rounded-full ${header.enforced ? 'bg-green-400' : 'bg-gray-500'}`}></div>
+            </div>
+            <div className="text-[10px] text-gray-400 font-mono break-all mb-1">{header.value || '(removed)'}</div>
+            <div className="text-[9px] text-gray-600">{header.description}</div>
+          </motion.div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function AntiFingerprintView() {
+  return (
+    <div className="space-y-4">
+      <div className="glass rounded-xl p-5">
+        <h3 className="text-sm font-bold mb-4 flex items-center gap-2">
+          <Fingerprint className="w-4 h-4 text-pink-400" />
+          Anti-Fingerprinting Protection
+        </h3>
+        <p className="text-[11px] text-gray-500 mb-4">
+          Advanced browser fingerprinting prevention using noise injection, parameter randomization, and API obfuscation.
+          All protections are active and non-3rd party (custom implementation).
+        </p>
+
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+          {Object.entries(antiFingerprintConfig).map(([key, enabled]) => (
+            <motion.div
+              key={key}
+              whileHover={{ scale: 1.05 }}
+              className={`p-3 rounded-lg border transition-all ${
+                enabled
+                  ? 'bg-green-500/10 border-green-500/20'
+                  : 'bg-white/[0.02] border-white/5'
+              }`}
+            >
+              <div className="flex items-center gap-2 mb-1">
+                <div className={`w-2 h-2 rounded-full ${enabled ? 'bg-green-400' : 'bg-gray-500'}`}></div>
+                <span className="text-xs font-medium capitalize">{key}</span>
+              </div>
+              <div className="text-[9px] text-gray-500">
+                {enabled ? 'Protected' : 'Disabled'}
+              </div>
+            </motion.div>
+          ))}
+        </div>
+
+        <div className="mt-6 p-4 bg-gradient-to-r from-pink-500/10 to-violet-500/10 border border-pink-500/20 rounded-lg">
+          <div className="text-xs font-bold text-pink-300 mb-2">🛡️ Protection Methods</div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-[10px] text-gray-400">
+            <div>• Canvas noise injection (random pixel manipulation)</div>
+            <div>• WebGL parameter randomization</div>
+            <div>• Audio context fingerprint obfuscation</div>
+            <div>• Font enumeration prevention</div>
+            <div>• Screen resolution spoofing</div>
+            <div>• Timezone randomization</div>
+            <div>• Language header rotation</div>
+            <div>• Plugin list obfuscation</div>
+            <div>• WebRTC IP leak prevention</div>
+            <div>• Hardware concurrency masking</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SecurityEventsView({ events }: { events: any[] }) {
+  const typeColors: Record<string, string> = {
+    blocked: 'text-red-400 bg-red-500/10',
+    alert: 'text-amber-400 bg-amber-500/10',
+    warning: 'text-orange-400 bg-orange-500/10',
+    info: 'text-blue-400 bg-blue-500/10',
+    success: 'text-green-400 bg-green-500/10',
+  };
+
+  return (
+    <div className="glass rounded-xl overflow-hidden">
+      <div className="px-4 py-3 border-b border-white/5 flex items-center justify-between">
+        <h3 className="text-sm font-bold">Security Events (Last 24h)</h3>
+        <span className="text-[10px] text-gray-500">{events.length} events</span>
+      </div>
+      <div className="divide-y divide-white/[0.03] max-h-[500px] overflow-y-auto">
+        {events.map(event => (
+          <motion.div
+            key={event.id}
+            initial={{ opacity: 0, x: -10 }}
+            animate={{ opacity: 1, x: 0 }}
+            className="flex items-center gap-3 px-4 py-2.5 hover:bg-white/[0.02]"
+          >
+            <span className="text-[10px] text-gray-600 font-mono w-16 shrink-0">
+              {new Date(event.timestamp).toLocaleTimeString()}
+            </span>
+            <span className={`text-[9px] px-2 py-0.5 rounded-full ${typeColors[event.type]}`}>
+              {event.type}
+            </span>
+            <span className="text-[10px] text-violet-400/70 font-mono w-24 shrink-0">[{event.source}]</span>
+            <span className="text-xs text-gray-300 truncate flex-1">{event.details}</span>
+            <span className="text-[9px] text-gray-600 font-mono shrink-0">{event.ip}</span>
+          </motion.div>
+        ))}
       </div>
     </div>
   );

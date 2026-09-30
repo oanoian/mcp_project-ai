@@ -38,7 +38,7 @@ interface AppState {
   // UI state
   selectedTeam: TeamType | 'all';
   selectedAgent: string | null;
-  activeView: 'architecture' | 'dashboard' | 'teams' | 'providers' | 'tasks' | 'mcp-config' | 'logs';
+  activeView: 'architecture' | 'security' | 'dashboard' | 'teams' | 'providers' | 'tasks' | 'mcp-config' | 'logs';
   sidebarOpen: boolean;
 
   // Actions
